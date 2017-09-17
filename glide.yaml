@@ -1,0 +1,14 @@
+package: github.com/Clever/sfncli
+import:
+- package: github.com/aws/aws-sdk-go
+  version: ^1.10.46
+  subpackages:
+  - aws
+  - aws/awserr
+  - aws/session
+  - service/sfn
+  - service/sfn/sfniface
+- package: gopkg.in/Clever/kayvee-go.v6
+  version: ^6.7.3
+  subpackages:
+  - logger
