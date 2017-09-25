@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -9,40 +8,36 @@ import (
 	"os"
 	"os/exec"
 
+	"github.com/armon/circbuf"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/sfn"
 	"github.com/aws/aws-sdk-go/service/sfn/sfniface"
 )
 
+// stay within documented limits of SFN APIs
+const maxTaskOutputLength = 32768
+const maxTaskFailureCauseLength = 32768
+
 type TaskRunner struct {
 	sfnapi    sfniface.SFNAPI
 	taskToken string
 	cmd       string
-	inputs    []string
+	args      []string
 }
 
 func NewTaskRunner(cmd string, args []string, sfnapi sfniface.SFNAPI, taskInput string, taskToken string) TaskRunner {
-	var params []string
-	if err := json.Unmarshal([]byte(taskInput), &params); err != nil {
-		sfnapi.SendTaskFailure(&sfn.SendTaskFailureInput{
-			Cause:     aws.String(fmt.Sprintf("Task input must be array of strings: %s", err.Error())),
-			TaskToken: &taskToken,
-		})
-		return TaskRunner{}
+	// if the task input is an array of strings, interpret these as an args array
+	// otherwise pass the raw input as a single arg
+	var taskInputArgs []string
+	if err := json.Unmarshal([]byte(taskInput), &taskInputArgs); err != nil {
+		taskInputArgs = []string{taskInput}
 	}
-
-	// append the input on the cmd passed through the CLI
-	// example:
-	// 		sfncli -cmd echo how now
-	// 		input = ["brown", "cow"]
-	//      exec(echo, ["how", "now", "brown", "cow"])
-	inputs := append(args, params...)
 
 	return TaskRunner{
 		sfnapi:    sfnapi,
 		taskToken: taskToken,
 		cmd:       cmd,
-		inputs:    inputs,
+		args:      append(args, taskInputArgs...),
 	}
 }
 
@@ -53,23 +48,23 @@ func (t TaskRunner) Process(ctx context.Context) error {
 		return nil // if New failed :-/
 	}
 	log.InfoD("exec-command", map[string]interface{}{
-		"inputs": t.inputs,
-		"cmd":    t.cmd,
+		"args": t.args,
+		"cmd":  t.cmd,
 	})
 
-	cmd := exec.CommandContext(ctx, t.cmd, t.inputs...)
+	cmd := exec.CommandContext(ctx, t.cmd, t.args...)
 	cmd.Env = os.Environ()
 
 	// Write the stdout and stderr of the process to both this process' stdout and stderr
-	// and also write to a byte buffer so that we can save it in the ResultsStore
-	var stderrbuf bytes.Buffer
-	var stdoutbuf bytes.Buffer
-	cmd.Stderr = io.MultiWriter(os.Stderr, &stderrbuf)
-	cmd.Stdout = io.MultiWriter(os.Stdout, &stdoutbuf)
+	// and also write to a byte buffer so that we can send the result to step functions
+	stderrbuf, _ := circbuf.NewBuffer(maxTaskFailureCauseLength)
+	stdoutbuf, _ := circbuf.NewBuffer(maxTaskOutputLength)
+	cmd.Stderr = io.MultiWriter(os.Stderr, stderrbuf)
+	cmd.Stdout = io.MultiWriter(os.Stdout, stdoutbuf)
 
 	if err := cmd.Run(); err != nil {
 		if _, e := t.sfnapi.SendTaskFailureWithContext(ctx, &sfn.SendTaskFailureInput{
-			Cause:     aws.String(stderrbuf.String()), // TODO: limits on length?
+			Cause:     aws.String(stderrbuf.String()),
 			TaskToken: &t.taskToken,
 		}); e != nil {
 			return fmt.Errorf("error sending task failure: %s", e)
@@ -81,7 +76,10 @@ func (t TaskRunner) Process(ctx context.Context) error {
 	output := stdoutbuf.String()
 	var test interface{}
 	if err := json.Unmarshal([]byte(output), &test); err != nil {
-		// output isn't JSON, make it json
+		// output isn't JSON, make it json and stay under the length limit
+		if len(output)+100 > maxTaskOutputLength && len(output) > 100 {
+			output = output[100:] // stay under the limit
+		}
 		newOutputBs, _ := json.Marshal(map[string]interface{}{
 			"raw": output,
 		})
@@ -89,7 +87,7 @@ func (t TaskRunner) Process(ctx context.Context) error {
 	}
 
 	_, err := t.sfnapi.SendTaskSuccessWithContext(ctx, &sfn.SendTaskSuccessInput{
-		Output:    aws.String(output), // TODO: limits on length?
+		Output:    aws.String(output),
 		TaskToken: &t.taskToken,
 	})
 	return err

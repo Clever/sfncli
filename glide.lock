@@ -1,8 +1,10 @@
-hash: 74ddbe1a71d8e3e11b2a0aefb05292d41103ae4455c35e3ef324d5c9cd2e6a72
-updated: 2017-09-17T04:18:32.221656447Z
+hash: ae45a382a18c2b323883b4471bdd4d3307b18be7d06d1a9b811be3739284ff54
+updated: 2017-09-19T23:03:15.467189207Z
 imports:
+- name: github.com/armon/circbuf
+  version: bbbad097214e2918d8543d5201d12bfd7bca254d
 - name: github.com/aws/aws-sdk-go
-  version: 88849eea79e8e48241987b1f0a11a7a0dcbb7716
+  version: 9924c83c280264fb32f34cc5095204c451bedf0c
   subpackages:
   - aws
   - aws/awserr
