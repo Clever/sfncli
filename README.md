@@ -40,7 +40,7 @@ sfncli -activityname sleep-100 -region us-west-2 -workername sleep-worker -cmd s
 Start up a test activity that runs `echo` on the work it receives.
 
 ```
-go run cmd/sfncli/*.go -region us-west-2 -name test-activity -cmd echo
+go run cmd/sfncli/*.go -region us-west-2 -activityname test-activity -cmd echo
 ```
 
 Create a new state machine that uses this activity for one of its states (this requires you to [create a role for use with Step Functions](http://docs.aws.amazon.com/step-functions/latest/dg/procedure-create-iam-role.html)):
