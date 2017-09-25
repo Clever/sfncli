@@ -87,12 +87,11 @@ func main() {
 	// getactivitytask claims to initiate a polling loop, but it seems to return every few minutes with
 	// a nil error and empty output. So wrap it in a polling loop of our own
 	ticker := time.NewTicker(5 * time.Second)
-GetActivityTaskPollingLoop: // breaking out of for-select is not pretty :-/ https://golang.org/ref/spec#Break_statements
-	for {
+	for mainCtx.Err() == nil {
 		select {
 		case <-mainCtx.Done():
 			log.Info("getactivitytask-stop")
-			break GetActivityTaskPollingLoop
+			continue
 		case <-ticker.C:
 			getATOutput, err := sfnapi.GetActivityTaskWithContext(mainCtx, &sfn.GetActivityTaskInput{
 				ActivityArn: createOutput.ActivityArn,
