@@ -21,7 +21,8 @@ var log = logger.New("sfncli")
 var Version string
 
 func main() {
-	name := flag.String("name", "", "The activity name to register with AWS Step Functions.")
+	activityName := flag.String("activityname", "", "The activity name to register with AWS Step Functions. $VAR and ${VAR} env variables are expanded.")
+	workerName := flag.String("workername", "", "The worker name to send to AWS Step Functions when processing a task. Environment variables are expanded. The magic string ECS_TASK_ARN will be expanded to the ECS task ARN via the metadata service.")
 	cmd := flag.String("cmd", "", "The command to run to process activity tasks.")
 	region := flag.String("region", "", "The AWS region to send Step Function API calls. Defaults to AWS_REGION.")
 	printVersion := flag.Bool("version", false, "Print the version and exit.")
@@ -33,9 +34,21 @@ func main() {
 		os.Exit(0)
 	}
 
-	if *name == "" {
-		fmt.Println("name is required")
+	if *activityName == "" {
+		fmt.Println("activityname is required")
 		os.Exit(1)
+	}
+	*activityName = os.ExpandEnv(*activityName)
+	if *workerName == "" {
+		fmt.Println("workername is required")
+		os.Exit(1)
+	}
+	*workerName = os.ExpandEnv(*workerName)
+	if newWorkerName, err := expandECSTaskARN(*workerName); err != nil {
+		fmt.Printf("error expanding %s: %s", magicECSTaskARN, err)
+		os.Exit(1)
+	} else {
+		*workerName = newWorkerName
 	}
 	if *cmd == "" {
 		fmt.Println("cmd is required")
@@ -48,9 +61,6 @@ func main() {
 			os.Exit(1)
 		}
 	}
-
-	// TODO: set workerName to something useful
-	workerName := "worker-name"
 
 	mainCtx, mainCtxCancel := context.WithCancel(context.Background())
 	c := make(chan os.Signal, 1)
@@ -65,28 +75,27 @@ func main() {
 	// register the activity with AWS (it might already exist, which is ok)
 	sfnapi := sfn.New(session.New(), aws.NewConfig().WithRegion(*region))
 	createOutput, err := sfnapi.CreateActivityWithContext(mainCtx, &sfn.CreateActivityInput{
-		Name: name,
+		Name: activityName,
 	})
 	if err != nil {
 		fmt.Printf("error creating activity: %s\n", err)
 		os.Exit(1)
 	}
-	log.InfoD("startup", logger.M{"activity": *createOutput.ActivityArn, "worker-name": workerName})
+	log.InfoD("startup", logger.M{"activity": *createOutput.ActivityArn, "worker-name": *workerName})
 
 	// run getactivitytask and get some work
-	// getactivitytask itself claims to initiate a polling loop, but wrap it in a polling loop of our own
-	// since it seems to return every minute or so with a nil error and empty output
+	// getactivitytask claims to initiate a polling loop, but it seems to return every few minutes with
+	// a nil error and empty output. So wrap it in a polling loop of our own
 	ticker := time.NewTicker(5 * time.Second)
-OuterLoop:
-	for {
+	for mainCtx.Err() == nil {
 		select {
 		case <-mainCtx.Done():
 			log.Info("getactivitytask-stop")
-			break OuterLoop // :-/ https://golang.org/ref/spec#Break_statements
+			continue
 		case <-ticker.C:
 			getATOutput, err := sfnapi.GetActivityTaskWithContext(mainCtx, &sfn.GetActivityTaskInput{
 				ActivityArn: createOutput.ActivityArn,
-				WorkerName:  &workerName,
+				WorkerName:  workerName,
 			})
 			if err != nil {
 				log.ErrorD("getactivitytask-error", logger.M{"error": err.Error()})
@@ -116,7 +125,8 @@ OuterLoop:
 				log.InfoD("heartbeat-end", logger.M{"token": token})
 			}()
 
-			// Run the command
+			// Run the command. Treat unprocessed args (flag.Args()) as additional args to
+			// send to the command on every invocation of the command
 			taskRunner := NewTaskRunner(*cmd, flag.Args(), sfnapi, input, token)
 			if err := taskRunner.Process(taskCtx); err != nil {
 				log.ErrorD("process-error", logger.M{"error": err.Error()})

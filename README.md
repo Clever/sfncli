@@ -4,7 +4,26 @@ Utility to create AWS Step Function activities out of command line programs.
 
 ## Usage
 
-TODO
+```
+$ sfncli -h
+Usage of sfncli:
+  -activityname string
+    	The activity name to register with AWS Step Functions. $VAR and ${VAR} env variables are expanded.
+  -cmd string
+    	The command to run to process activity tasks.
+  -region string
+    	The AWS region to send Step Function API calls. Defaults to AWS_REGION.
+  -version
+    	Print the version and exit.
+  -workername string
+    	The worker name to send to AWS Step Functions when processing a task. Environment variables are expanded. The magic string ECS_TASK_ARN will be expanded to the ECS task ARN via the metadata service.
+```
+
+Example:
+
+```
+sfncli -activityname sleep-100 -region us-west-2 -workername sleep-worker -cmd sleep 100
+```
 
 ## High-level logic
 
@@ -21,7 +40,7 @@ TODO
 Start up a test activity that runs `echo` on the work it receives.
 
 ```
-go run cmd/sfncli/*.go -region us-west-2 -name test-activity -cmd echo
+go run cmd/sfncli/*.go -region us-west-2 -activityname test-activity -cmd echo
 ```
 
 Create a new state machine that uses this activity for one of its states (this requires you to [create a role for use with Step Functions](http://docs.aws.amazon.com/step-functions/latest/dg/procedure-create-iam-role.html)):

@@ -12,3 +12,4 @@ import:
   version: ^6.7.3
   subpackages:
   - logger
+- package: github.com/armon/circbuf
