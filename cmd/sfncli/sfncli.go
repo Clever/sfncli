@@ -22,7 +22,7 @@ var Version string
 
 func main() {
 	activityName := flag.String("activityname", "", "The activity name to register with AWS Step Functions. $VAR and ${VAR} env variables are expanded.")
-	workerName := flag.String("workername", "", "The worker name to send to AWS Step Functions when processing a task. Environment variables are expanded. The magic string ECS_TASK_ARN will be expanded to the ECS task ARN via the metadata service.")
+	workerName := flag.String("workername", "", "The worker name to send to AWS Step Functions when processing a task. Environment variables are expanded. The magic string MAGIC_ECS_TASK_ARN will be expanded to the ECS task ARN via the metadata service.")
 	cmd := flag.String("cmd", "", "The command to run to process activity tasks.")
 	region := flag.String("region", "", "The AWS region to send Step Function API calls. Defaults to AWS_REGION.")
 	printVersion := flag.Bool("version", false, "Print the version and exit.")

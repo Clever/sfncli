@@ -16,7 +16,7 @@ Usage of sfncli:
   -version
     	Print the version and exit.
   -workername string
-    	The worker name to send to AWS Step Functions when processing a task. Environment variables are expanded. The magic string ECS_TASK_ARN will be expanded to the ECS task ARN via the metadata service.
+    	The worker name to send to AWS Step Functions when processing a task. Environment variables are expanded. The magic string MAGIC_ECS_TASK_ARN will be expanded to the ECS task ARN via the metadata service.
 ```
 
 Example:
