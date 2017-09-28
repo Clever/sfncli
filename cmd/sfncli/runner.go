@@ -12,6 +12,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/sfn"
 	"github.com/aws/aws-sdk-go/service/sfn/sfniface"
+	"gopkg.in/Clever/kayvee-go.v6/logger"
 )
 
 // stay within documented limits of SFN APIs
@@ -47,11 +48,6 @@ func (t TaskRunner) Process(ctx context.Context) error {
 	if t.sfnapi == nil {
 		return nil // if New failed :-/
 	}
-	log.InfoD("exec-command", map[string]interface{}{
-		"args": t.args,
-		"cmd":  t.cmd,
-	})
-
 	cmd := exec.CommandContext(ctx, t.cmd, t.args...)
 	cmd.Env = os.Environ()
 
@@ -62,7 +58,12 @@ func (t TaskRunner) Process(ctx context.Context) error {
 	cmd.Stderr = io.MultiWriter(os.Stderr, stderrbuf)
 	cmd.Stdout = io.MultiWriter(os.Stdout, stdoutbuf)
 
+	log.InfoD("exec-command-start", map[string]interface{}{
+		"args": t.args,
+		"cmd":  t.cmd,
+	})
 	if err := cmd.Run(); err != nil {
+		log.InfoD("exec-command-err", logger.M{"error": err.Error()})
 		if _, e := t.sfnapi.SendTaskFailureWithContext(ctx, &sfn.SendTaskFailureInput{
 			Cause:     aws.String(stderrbuf.String()),
 			TaskToken: &t.taskToken,
@@ -71,6 +72,7 @@ func (t TaskRunner) Process(ctx context.Context) error {
 		}
 		return err
 	}
+	log.Info("exec-command-end")
 
 	// AWS requires JSON output. If it isn't, then make it so.
 	output := stdoutbuf.String()

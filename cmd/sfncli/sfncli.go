@@ -93,6 +93,7 @@ func main() {
 			log.Info("getactivitytask-stop")
 			continue
 		case <-ticker.C:
+			log.InfoD("getactivitytask-start", logger.M{"activity-arn": *createOutput.ActivityArn, "worker-name": *workerName})
 			getATOutput, err := sfnapi.GetActivityTaskWithContext(mainCtx, &sfn.GetActivityTaskInput{
 				ActivityArn: createOutput.ActivityArn,
 				WorkerName:  workerName,
@@ -102,7 +103,6 @@ func main() {
 				continue
 			}
 			if getATOutput.TaskToken == nil {
-				log.Info("getactivitytask-restart")
 				continue
 			}
 			input := *getATOutput.Input
