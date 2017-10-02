@@ -20,10 +20,11 @@ const maxTaskOutputLength = 32768
 const maxTaskFailureCauseLength = 32768
 
 type TaskRunner struct {
-	sfnapi    sfniface.SFNAPI
-	taskToken string
-	cmd       string
-	args      []string
+	sfnapi        sfniface.SFNAPI
+	taskToken     string
+	cmd           string
+	args          []string
+	executionName string
 }
 
 func NewTaskRunner(
@@ -34,12 +35,23 @@ func NewTaskRunner(
 		return TaskRunner{}, fmt.Errorf("Input must be a json object: %s", err)
 	}
 
-	return TaskRunner{
-		sfnapi:    sfnapi,
-		taskToken: taskToken,
-		cmd:       cmd,
-		args:      append(args, taskInputArgs...),
+	executionName, ok := job["$execution-name"].(string)
+	if !ok {
+		return TaskRunner{}, fmt.Errorf("Job with unknown execution-name")
 	}
+
+	marshaledJob, err := json.Marshal(job)
+	if err != nil {
+		return TaskRunner{}, err
+	}
+
+	return TaskRunner{
+		sfnapi:        sfnapi,
+		taskToken:     taskToken,
+		executionName: executionName,
+		cmd:           cmd,
+		args:          append(args, string(marshaledJob)),
+	}, nil
 }
 
 // Process runs the underlying cmd with the appropriate
@@ -49,7 +61,7 @@ func (t TaskRunner) Process(ctx context.Context) error {
 		return fmt.Errorf("NewTaskFailure -- nil sfnapi") // if New failed :-/
 	}
 	cmd := exec.CommandContext(ctx, t.cmd, t.args...)
-	cmd.Env = os.Environ()
+	cmd.Env = append(os.Environ(), "_EXECUTION_NAME="+t.executionName)
 
 	// Write the stdout and stderr of the process to both this process' stdout and stderr
 	// and also write to a byte buffer so that we can send the result to step functions
@@ -77,9 +89,14 @@ func (t TaskRunner) Process(ctx context.Context) error {
 	if err := json.Unmarshal([]byte(output), &out); err != nil {
 		return fmt.Errorf("Worker must output json object to stdout: %s", err)
 	}
+	out["$execution-name"] = t.executionName
 
-	_, err := t.sfnapi.SendTaskSuccessWithContext(ctx, &sfn.SendTaskSuccessInput{
-		Output:    aws.String(output),
+	marshaledOut, err := json.Marshal(out)
+	if err != nil {
+		return err
+	}
+	_, err = t.sfnapi.SendTaskSuccessWithContext(ctx, &sfn.SendTaskSuccessInput{
+		Output:    aws.String(string(marshaledOut)),
 		TaskToken: &t.taskToken,
 	})
 	return err
