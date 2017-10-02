@@ -58,10 +58,7 @@ func (t TaskRunner) Process(ctx context.Context) error {
 	cmd.Stderr = io.MultiWriter(os.Stderr, stderrbuf)
 	cmd.Stdout = io.MultiWriter(os.Stdout, stdoutbuf)
 
-	log.InfoD("exec-command-start", map[string]interface{}{
-		"args": t.args,
-		"cmd":  t.cmd,
-	})
+	log.InfoD("exec-command-start", logger.M{"args": t.args, "cmd": t.cmd})
 	if err := cmd.Run(); err != nil {
 		log.InfoD("exec-command-err", logger.M{"error": err.Error()})
 		if _, e := t.sfnapi.SendTaskFailureWithContext(ctx, &sfn.SendTaskFailureInput{
