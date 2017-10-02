@@ -26,12 +26,12 @@ type TaskRunner struct {
 	args      []string
 }
 
-func NewTaskRunner(cmd string, args []string, sfnapi sfniface.SFNAPI, taskInput string, taskToken string) TaskRunner {
-	// if the task input is an array of strings, interpret these as an args array
-	// otherwise pass the raw input as a single arg
-	var taskInputArgs []string
-	if err := json.Unmarshal([]byte(taskInput), &taskInputArgs); err != nil {
-		taskInputArgs = []string{taskInput}
+func NewTaskRunner(
+	cmd string, args []string, sfnapi sfniface.SFNAPI, input, taskToken string,
+) (TaskRunner, error) {
+	var job map[string]interface{}
+	if err := json.Unmarshal([]byte(input), &job); err != nil {
+		return TaskRunner{}, fmt.Errorf("Input must be a json object: %s", err)
 	}
 
 	return TaskRunner{
@@ -46,7 +46,7 @@ func NewTaskRunner(cmd string, args []string, sfnapi sfniface.SFNAPI, taskInput 
 // environment and command line params
 func (t TaskRunner) Process(ctx context.Context) error {
 	if t.sfnapi == nil {
-		return nil // if New failed :-/
+		return fmt.Errorf("NewTaskFailure -- nil sfnapi") // if New failed :-/
 	}
 	cmd := exec.CommandContext(ctx, t.cmd, t.args...)
 	cmd.Env = os.Environ()
@@ -73,16 +73,9 @@ func (t TaskRunner) Process(ctx context.Context) error {
 
 	// AWS requires JSON output. If it isn't, then make it so.
 	output := stdoutbuf.String()
-	var test interface{}
-	if err := json.Unmarshal([]byte(output), &test); err != nil {
-		// output isn't JSON, make it json and stay under the length limit
-		if len(output)+100 > maxTaskOutputLength && len(output) > 100 {
-			output = output[100:] // stay under the limit
-		}
-		newOutputBs, _ := json.Marshal(map[string]interface{}{
-			"raw": output,
-		})
-		output = string(newOutputBs)
+	var out map[string]interface{}
+	if err := json.Unmarshal([]byte(output), &out); err != nil {
+		return fmt.Errorf("Worker must output json object to stdout: %s", err)
 	}
 
 	_, err := t.sfnapi.SendTaskSuccessWithContext(ctx, &sfn.SendTaskSuccessInput{
