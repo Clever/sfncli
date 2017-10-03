@@ -36,7 +36,7 @@ func NewTaskRunner(
 	}
 	executionName, _ := taskInput["_EXECUTION_NAME"].(string)
 
-	marshaledJob, err := json.Marshal(taskInput)
+	marshaledInput, err := json.Marshal(taskInput)
 	if err != nil {
 		return TaskRunner{}, err
 	}
@@ -46,7 +46,7 @@ func NewTaskRunner(
 		taskToken:     taskToken,
 		executionName: executionName,
 		cmd:           cmd,
-		args:          append(args, string(marshaledJob)),
+		args:          append(args, string(marshaledInput)),
 	}, nil
 }
 
