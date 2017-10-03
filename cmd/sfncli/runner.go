@@ -30,17 +30,13 @@ type TaskRunner struct {
 func NewTaskRunner(
 	cmd string, args []string, sfnapi sfniface.SFNAPI, input, taskToken string,
 ) (TaskRunner, error) {
-	var job map[string]interface{}
-	if err := json.Unmarshal([]byte(input), &job); err != nil {
+	var taskInput map[string]interface{}
+	if err := json.Unmarshal([]byte(input), &taskInput); err != nil {
 		return TaskRunner{}, fmt.Errorf("Input must be a json object: %s", err)
 	}
+	executionName, _ := taskInput["_EXECUTION_NAME"].(string)
 
-	executionName, ok := job["$execution-name"].(string)
-	if !ok {
-		return TaskRunner{}, fmt.Errorf("Job with unknown execution-name")
-	}
-
-	marshaledJob, err := json.Marshal(job)
+	marshaledJob, err := json.Marshal(taskInput)
 	if err != nil {
 		return TaskRunner{}, err
 	}
@@ -89,7 +85,7 @@ func (t TaskRunner) Process(ctx context.Context) error {
 	if err := json.Unmarshal([]byte(output), &out); err != nil {
 		return fmt.Errorf("Worker must output json object to stdout: %s", err)
 	}
-	out["$execution-name"] = t.executionName
+	out["_EXECUTION_NAME"] = t.executionName
 
 	marshaledOut, err := json.Marshal(out)
 	if err != nil {
