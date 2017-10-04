@@ -32,7 +32,7 @@ sfncli -activityname sleep-100 -region us-west-2 -workername sleep-worker -cmd s
 - Get a task. Take the JSON input for the task and
   - if it's a JSON object, use this as the last arg to the command.
   - if it's anything else (e.g. JSON array), an error is thown
-  - if JSON object has a `_EXECUTION_NAME` property, an corresponding env var called `_EXECUTION_NAME` is add to the sub-process enviornment
+  - if JSON object has an `_EXECUTION_NAME` property, a corresponding env var called `_EXECUTION_NAME` is added to the sub-process environment
 - Start [`SendTaskHeartbeat`](http://docs.aws.amazon.com/step-functions/latest/apireference/API_SendTaskHeartbeat.html) loop.
 - Call [`SendTaskFailure`](http://docs.aws.amazon.com/step-functions/latest/apireference/API_SendTaskFailure.html) / [`SendTaskSuccess`](http://docs.aws.amazon.com/step-functions/latest/apireference/API_SendTaskSuccess.html) when command returns.
 
