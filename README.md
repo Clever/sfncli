@@ -30,8 +30,9 @@ sfncli -activityname sleep-100 -region us-west-2 -workername sleep-worker -cmd s
 - On startup, call [`CreateActivity`](http://docs.aws.amazon.com/step-functions/latest/apireference/API_CreateActivity.html) to register an [Activity](http://docs.aws.amazon.com/step-functions/latest/dg/concepts-activities.html) with Step Functions.
 - Begin polling [`GetActivityTask`](http://docs.aws.amazon.com/step-functions/latest/apireference/API_GetActivityTask.html) for tasks.
 - Get a task. Take the JSON input for the task and
-  - if it's an array, use this as the args to the command.
-  - if it's anything else (e.g. JSON object), it's currently not supported
+  - if it's a JSON object, use this as the last arg to the command.
+  - if it's anything else (e.g. JSON array), an error is thown
+  - if JSON object has a `_EXECUTION_NAME` property, an corresponding env var called `_EXECUTION_NAME` is add to the sub-process enviornment
 - Start [`SendTaskHeartbeat`](http://docs.aws.amazon.com/step-functions/latest/apireference/API_SendTaskHeartbeat.html) loop.
 - Call [`SendTaskFailure`](http://docs.aws.amazon.com/step-functions/latest/apireference/API_SendTaskFailure.html) / [`SendTaskSuccess`](http://docs.aws.amazon.com/step-functions/latest/apireference/API_SendTaskSuccess.html) when command returns.
 
@@ -66,10 +67,10 @@ Note that you will need to replace the `Resource` above to reflect the correct A
 Start an execution of the state machine (again replacing the ARN below with the correct account ID):
 
 ```
-aws --region us-west-2 stepfunctions start-execution --state-machine-arn arn:aws:states:us-west-2:589690932525:stateMachine:test-state-machine  --input '["hello", "world"]'
+aws --region us-west-2 stepfunctions start-execution --state-machine-arn arn:aws:states:us-west-2:589690932525:stateMachine:test-state-machine  --input '{"hello": "world"}'
 ```
 
-You should see `echo` run with the arguments "hello" and "world".
+You should see `echo` run with the argument `{"hello": "world"}`.
 
 ## Usage
 
