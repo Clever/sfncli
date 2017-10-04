@@ -127,23 +127,8 @@ func main() {
 
 			// Run the command. Treat unprocessed args (flag.Args()) as additional args to
 			// send to the command on every invocation of the command
-			taskRunner, err := NewTaskRunner(*cmd, flag.Args(), sfnapi, input, token)
-			if err != nil {
-				log.ErrorD("process-start", logger.M{"error": err.Error()})
-
-				_, err = sfnapi.SendTaskFailureWithContext(taskCtx, &sfn.SendTaskFailureInput{
-					Cause:     aws.String(err.Error()),
-					TaskToken: &token,
-				})
-				if err != nil {
-					log.ErrorD("process-failure", logger.M{"error": err.Error()})
-				}
-
-				taskCtxCancel()
-				continue
-			}
-
-			err = taskRunner.Process(taskCtx)
+			taskRunner := NewTaskRunner(*cmd, sfnapi, token)
+			err = taskRunner.Process(taskCtx, flag.Args(), input)
 			if err != nil {
 				log.ErrorD("process-error", logger.M{"error": err.Error()})
 				taskCtxCancel()
