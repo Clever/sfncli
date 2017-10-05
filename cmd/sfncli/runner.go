@@ -20,10 +20,9 @@ const maxTaskOutputLength = 32768
 const maxTaskFailureCauseLength = 32768
 
 type TaskRunner struct {
-	sfnapi        sfniface.SFNAPI
-	taskToken     string
-	cmd           string
-	executionName string
+	sfnapi    sfniface.SFNAPI
+	taskToken string
+	cmd       string
 }
 
 func NewTaskRunner(cmd string, sfnapi sfniface.SFNAPI, taskToken string) TaskRunner {
@@ -34,8 +33,10 @@ func NewTaskRunner(cmd string, sfnapi sfniface.SFNAPI, taskToken string) TaskRun
 	}
 }
 
-func (t TaskRunner) handleProcessError(ctx context.Context, title string, err error) error {
-	log.ErrorD(title, logger.M{"error": err.Error()})
+func (t TaskRunner) handleProcessError(
+	ctx context.Context, executionName, title string, err error,
+) error {
+	log.ErrorD(title, logger.M{"error": err.Error(), "execution_name": executionName})
 
 	_, sendErr := t.sfnapi.SendTaskFailureWithContext(ctx, &sfn.SendTaskFailureInput{
 		Cause:     aws.String(err.Error()),
@@ -52,20 +53,22 @@ func (t TaskRunner) handleProcessError(ctx context.Context, title string, err er
 // environment and command line params
 func (t TaskRunner) Process(ctx context.Context, args []string, input string) error {
 	if t.sfnapi == nil { // if New failed :-/
-		return t.handleProcessError(ctx, "process-init", fmt.Errorf("NewTaskFailure -- nil sfnapi"))
+		return t.handleProcessError(
+			ctx, "process-init", "unknown", fmt.Errorf("NewTaskFailure -- nil sfnapi"),
+		)
 	}
 
 	var taskInput map[string]interface{}
 	if err := json.Unmarshal([]byte(input), &taskInput); err != nil {
 		return t.handleProcessError(
-			ctx, "process-input", fmt.Errorf("Input must be a json object: %s", err),
+			ctx, "process-input", "unknown", fmt.Errorf("Input must be a json object: %s", err),
 		)
 	}
 	executionName, _ := taskInput["_EXECUTION_NAME"].(string)
 
 	marshaledInput, err := json.Marshal(taskInput)
 	if err != nil {
-		return t.handleProcessError(ctx, "process-input", err)
+		return t.handleProcessError(ctx, "process-input", executionName, err)
 	}
 
 	args = append(args, string(marshaledInput))
@@ -80,29 +83,36 @@ func (t TaskRunner) Process(ctx context.Context, args []string, input string) er
 	cmd.Stderr = io.MultiWriter(os.Stderr, stderrbuf)
 	cmd.Stdout = io.MultiWriter(os.Stdout, stdoutbuf)
 
-	log.InfoD("exec-command-start", logger.M{"args": args, "cmd": t.cmd})
+	log.InfoD("exec-command-start", logger.M{
+		"args": args, "cmd": t.cmd, "execution_name": executionName,
+	})
 	if err := cmd.Run(); err != nil {
-		return t.handleProcessError(ctx, "exec-command-err", err)
+		return t.handleProcessError(ctx, "exec-command-err", executionName, err)
 	}
-	log.Info("exec-command-end")
+	log.InfoD("exec-command-end", logger.M{"execution_name": executionName})
 
 	// AWS requires JSON output. If it isn't, then make it so.
 	output := stdoutbuf.String()
 	var out map[string]interface{}
 	if err := json.Unmarshal([]byte(output), &out); err != nil {
-		return t.handleProcessError(
-			ctx, "process-output", fmt.Errorf("Worker must output json object to stdout: %s", err),
-		)
+		wrappedErr := fmt.Errorf("Worker must output json object to stdout: %s", err)
+		return t.handleProcessError(ctx, "process-output", executionName, wrappedErr)
 	}
 	out["_EXECUTION_NAME"] = executionName
 
 	marshaledOut, err := json.Marshal(out)
 	if err != nil {
-		return t.handleProcessError(ctx, "process-output", err)
+		return t.handleProcessError(ctx, "process-output", executionName, err)
 	}
 	_, err = t.sfnapi.SendTaskSuccessWithContext(ctx, &sfn.SendTaskSuccessInput{
 		Output:    aws.String(string(marshaledOut)),
 		TaskToken: &t.taskToken,
 	})
+	if err != nil {
+		log.ErrorD(
+			"process-success", logger.M{"error": err.Error(), "execution_name": executionName},
+		)
+	}
+
 	return err
 }
