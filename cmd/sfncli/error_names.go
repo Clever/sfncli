@@ -94,16 +94,16 @@ func (t TaskFailureCustomErrorName) Error() string { return t.stderr }
 
 func (t TaskFailureCustomErrorName) ErrorName() string { return t.errorName }
 
-// TaskFailureCommandOutputNotJSON is used when the output of the command is not a JSON object.
-type TaskFailureCommandOutputNotJSON struct {
-	stdout string
+// TaskFailureTaskOutputNotJSON is used when the output of the task is not a JSON object.
+type TaskFailureTaskOutputNotJSON struct {
+	output string
 }
 
-func (t TaskFailureCommandOutputNotJSON) Error() string {
-	return fmt.Sprintf("stdout not valid JSON: '%s'", t.stdout)
+func (t TaskFailureTaskOutputNotJSON) Error() string {
+	return fmt.Sprintf("stdout not valid JSON: '%s'", t.output)
 }
 
-func (t TaskFailureCommandOutputNotJSON) ErrorName() string { return "sfncli.CommandOutputNotJSON" }
+func (t TaskFailureTaskOutputNotJSON) ErrorName() string { return "sfncli.TaskOutputNotJSON" }
 
 // TaskFailureCommandKilled happens when sfncli receives SIGTERM.
 type TaskFailureCommandTerminated struct {

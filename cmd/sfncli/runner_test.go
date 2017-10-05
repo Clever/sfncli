@@ -21,13 +21,6 @@ const emptyTaskInput = "{}"
 
 var testScriptsDir = os.Getenv("GOPATH") + "/src/github.com/Clever/sfncli/cmd/sfncli/test_scripts"
 
-type sfncliErrorNameTest struct {
-	description         string
-	expectedError       TaskFailureError
-	testScript          string
-	postScriptExecution func(*TaskRunner)
-}
-
 func TestTaskFailureTaskInputNotJSON(t *testing.T) {
 	t.Parallel()
 	testCtx, testCtxCancel := context.WithCancel(context.Background())
@@ -139,13 +132,13 @@ func TestTaskFailureCustomErrorName(t *testing.T) {
 	require.Equal(t, err, expectedError)
 }
 
-func TestTaskFailureCommandOutputNotJSON(t *testing.T) {
+func TestTaskFailureTaskOutputNotJSON(t *testing.T) {
 	t.Parallel()
 	testCtx, testCtxCancel := context.WithCancel(context.Background())
 	defer testCtxCancel()
 	cmd := "stderr_stdout_exitcode.sh"
 	cmdArgs := []string{"stderr", `stdout not JSON!`, "0"}
-	expectedError := TaskFailureCommandOutputNotJSON{stdout: "stdout not JSON!"}
+	expectedError := TaskFailureTaskOutputNotJSON{output: "stdout not JSON!"}
 
 	controller := gomock.NewController(t)
 	defer controller.Finish()
@@ -256,5 +249,22 @@ func TestTaskSuccessSignalForwarded(t *testing.T) {
 		process, _ := os.FindProcess(os.Getpid())
 		process.Signal(syscall.SIGHUP)
 	}()
+	require.Nil(t, taskRunner.Process(testCtx, cmdArgs, emptyTaskInput))
+}
+
+func TestTaskSuccessOutputIsLastLineOfStdout(t *testing.T) {
+	testCtx, testCtxCancel := context.WithCancel(context.Background())
+	defer testCtxCancel()
+	cmd := "stdout_parsing.sh"
+	cmdArgs := []string{}
+
+	controller := gomock.NewController(t)
+	mockSFN := mocksfn.NewMockSFNAPI(controller)
+	mockSFN.EXPECT().SendTaskSuccessWithContext(gomock.Any(), &sfn.SendTaskSuccessInput{
+		Output:    aws.String(`{"task":"output"}`),
+		TaskToken: aws.String(mockTaskToken),
+	})
+	defer controller.Finish()
+	taskRunner := NewTaskRunner(path.Join(testScriptsDir, cmd), mockSFN, mockTaskToken)
 	require.Nil(t, taskRunner.Process(testCtx, cmdArgs, emptyTaskInput))
 }

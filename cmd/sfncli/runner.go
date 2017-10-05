@@ -115,25 +115,25 @@ func (t *TaskRunner) Process(ctx context.Context, args []string, input string) e
 	t.logger.Info("exec-command-end")
 
 	// AWS / states language requires JSON output
-	stdout := strings.TrimSpace(stdoutbuf.String()) // remove trailing newline
-	var out map[string]interface{}
-	if err := json.Unmarshal([]byte(stdout), &out); err != nil {
-		return t.sendTaskFailure(TaskFailureCommandOutputNotJSON{stdout: stdout})
+	taskOutput := taskOutputFromStdout(stdoutbuf.String())
+	var taskOutputMap map[string]interface{}
+	if err := json.Unmarshal([]byte(taskOutput), &taskOutputMap); err != nil {
+		return t.sendTaskFailure(TaskFailureTaskOutputNotJSON{output: taskOutput})
 	}
 	if executionName != nil {
-		out["_EXECUTION_NAME"] = *executionName
+		taskOutputMap["_EXECUTION_NAME"] = *executionName
 	}
 
-	marshaledOut, err := json.Marshal(out)
+	finalTaskOutput, err := json.Marshal(taskOutputMap)
 	if err != nil {
 		return t.sendTaskFailure(TaskFailureUnknown{fmt.Errorf("JSON output re-marshalling failed. This should never happen. %s", err)})
 	}
 	_, err = t.sfnapi.SendTaskSuccessWithContext(ctx, &sfn.SendTaskSuccessInput{
-		Output:    aws.String(string(marshaledOut)),
+		Output:    aws.String(string(finalTaskOutput)),
 		TaskToken: &t.taskToken,
 	})
 	if err != nil {
-		t.logger.ErrorD("send-task-succes-error", logger.M{"error": err.Error()})
+		t.logger.ErrorD("send-task-success-error", logger.M{"error": err.Error()})
 	}
 
 	return err
@@ -179,6 +179,16 @@ func parseCustomErrorNameFromStdout(stdout string) string {
 	var customError struct {
 		ErrorName string `json:"error_name"`
 	}
-	json.Unmarshal([]byte(stdout), &customError)
+	json.Unmarshal([]byte(taskOutputFromStdout(stdout)), &customError)
 	return customError.ErrorName
+}
+
+func taskOutputFromStdout(stdout string) string {
+	stdout = strings.TrimSpace(stdout) // remove trailing newline
+	stdoutLines := strings.Split(stdout, "\n")
+	taskOutput := ""
+	if len(stdoutLines) > 0 {
+		taskOutput = stdoutLines[len(stdoutLines)-1]
+	}
+	return taskOutput
 }
