@@ -99,12 +99,12 @@ func (t *TaskRunner) Process(ctx context.Context, args []string, input string) e
 		case *os.PathError:
 			return t.sendTaskFailure(TaskFailureCommandNotFound{path: err.Path})
 		case *exec.ExitError:
+			if customErrorName != "" {
+				return t.sendTaskFailure(TaskFailureCustomErrorName{errorName: customErrorName, stderr: stderr})
+			}
 			status := err.ProcessState.Sys().(syscall.WaitStatus)
 			switch {
 			case status.Exited() && status.ExitStatus() > 0:
-				if customErrorName != "" {
-					return t.sendTaskFailure(TaskFailureCustomErrorName{errorName: customErrorName, stderr: stderr})
-				}
 				return t.sendTaskFailure(TaskFailureCommandExitedNonzero{stderr: stderr})
 			case status.Signaled() && status.Signal() == syscall.SIGKILL:
 				return t.sendTaskFailure(TaskFailureCommandKilled{stderr: stderr})
