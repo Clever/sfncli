@@ -3,10 +3,15 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
+	"os/signal"
+	"strings"
+	"syscall"
+	"time"
 
 	"github.com/armon/circbuf"
 	"github.com/aws/aws-sdk-go/aws"
@@ -20,9 +25,13 @@ const maxTaskOutputLength = 32768
 const maxTaskFailureCauseLength = 32768
 
 type TaskRunner struct {
-	sfnapi    sfniface.SFNAPI
-	taskToken string
-	cmd       string
+	sfnapi             sfniface.SFNAPI
+	taskToken          string
+	cmd                string
+	logger             logger.KayveeLogger
+	execCmd            *exec.Cmd
+	receivedSigterm    bool
+	sigtermGracePeriod time.Duration
 }
 
 func NewTaskRunner(cmd string, sfnapi sfniface.SFNAPI, taskToken string) TaskRunner {
@@ -30,89 +39,160 @@ func NewTaskRunner(cmd string, sfnapi sfniface.SFNAPI, taskToken string) TaskRun
 		sfnapi:    sfnapi,
 		taskToken: taskToken,
 		cmd:       cmd,
+		logger:    logger.New("sfncli"),
+		// set the default grace period to something slightly lower than the default
+		// docker stop grace period in ECS (30s)
+		sigtermGracePeriod: 25 * time.Second,
 	}
 }
 
-func (t TaskRunner) handleProcessError(
-	ctx context.Context, executionName, title string, err error,
-) error {
-	log.ErrorD(title, logger.M{"error": err.Error(), "execution_name": executionName})
-
-	_, sendErr := t.sfnapi.SendTaskFailureWithContext(ctx, &sfn.SendTaskFailureInput{
-		Cause:     aws.String(err.Error()),
-		TaskToken: &t.taskToken,
-	})
-	if sendErr != nil {
-		return fmt.Errorf("error sending task failure: %s", sendErr)
-	}
-
-	return err
-}
-
-// Process runs the underlying cmd with the appropriate
-// environment and command line params
-func (t TaskRunner) Process(ctx context.Context, args []string, input string) error {
+// Process runs the underlying command.
+// The command inherits the environment of the parent process.
+// Any signals sent to parent process will be forwarded to the command.
+// If the context is canceled, the command is killed.
+func (t *TaskRunner) Process(ctx context.Context, args []string, input string) error {
 	if t.sfnapi == nil { // if New failed :-/
-		return t.handleProcessError(
-			ctx, "process-init", "unknown", fmt.Errorf("NewTaskFailure -- nil sfnapi"),
-		)
+		return t.sendTaskFailure(TaskFailureUnknown{errors.New("nil sfnapi")})
 	}
 
 	var taskInput map[string]interface{}
 	if err := json.Unmarshal([]byte(input), &taskInput); err != nil {
-		return t.handleProcessError(
-			ctx, "process-input", "unknown", fmt.Errorf("Input must be a json object: %s", err),
-		)
+		return t.sendTaskFailure(TaskFailureTaskInputNotJSON{input: input})
 	}
-	executionName, _ := taskInput["_EXECUTION_NAME"].(string)
+
+	// convention: if the input contains _EXECUTION_NAME, pass it to the environment of the command
+	var executionName *string
+	if e, ok := taskInput["_EXECUTION_NAME"].(string); ok {
+		executionName = &e
+		t.logger.AddContext("execution_name", *executionName)
+	}
 
 	marshaledInput, err := json.Marshal(taskInput)
 	if err != nil {
-		return t.handleProcessError(ctx, "process-input", executionName, err)
+		return t.sendTaskFailure(TaskFailureUnknown{fmt.Errorf("JSON input re-marshalling failed. This should never happen. %s", err)})
 	}
 
 	args = append(args, string(marshaledInput))
 
-	cmd := exec.CommandContext(ctx, t.cmd, args...)
-	cmd.Env = append(os.Environ(), "_EXECUTION_NAME="+executionName)
+	t.execCmd = exec.CommandContext(ctx, t.cmd, args...)
+	if executionName != nil {
+		t.execCmd.Env = append(os.Environ(), "_EXECUTION_NAME="+*executionName)
+	}
 
 	// Write the stdout and stderr of the process to both this process' stdout and stderr
 	// and also write to a byte buffer so that we can send the result to step functions
 	stderrbuf, _ := circbuf.NewBuffer(maxTaskFailureCauseLength)
 	stdoutbuf, _ := circbuf.NewBuffer(maxTaskOutputLength)
-	cmd.Stderr = io.MultiWriter(os.Stderr, stderrbuf)
-	cmd.Stdout = io.MultiWriter(os.Stdout, stdoutbuf)
+	t.execCmd.Stderr = io.MultiWriter(os.Stderr, stderrbuf)
+	t.execCmd.Stdout = io.MultiWriter(os.Stdout, stdoutbuf)
 
-	log.InfoD("exec-command-start", logger.M{
-		"args": args, "cmd": t.cmd, "execution_name": executionName,
-	})
-	if err := cmd.Run(); err != nil {
-		return t.handleProcessError(ctx, "exec-command-err", executionName, err)
+	// forward signals to the command, handle SIGTERM
+	go t.handleSignals(ctx)
+
+	t.logger.InfoD("exec-command-start", logger.M{"args": args, "cmd": t.cmd})
+	if err := t.execCmd.Run(); err != nil {
+		stderr := strings.TrimSpace(stderrbuf.String()) // remove trailing newline
+		customErrorName := parseCustomErrorNameFromStdout(stdoutbuf.String())
+		if t.receivedSigterm {
+			if customErrorName != "" {
+				return t.sendTaskFailure(TaskFailureCustomErrorName{errorName: customErrorName, stderr: stderr})
+			}
+			return t.sendTaskFailure(TaskFailureCommandTerminated{stderr: stderr})
+		}
+		switch err := err.(type) {
+		case *os.PathError:
+			return t.sendTaskFailure(TaskFailureCommandNotFound{path: err.Path})
+		case *exec.ExitError:
+			if customErrorName != "" {
+				return t.sendTaskFailure(TaskFailureCustomErrorName{errorName: customErrorName, stderr: stderr})
+			}
+			status := err.ProcessState.Sys().(syscall.WaitStatus)
+			switch {
+			case status.Exited() && status.ExitStatus() > 0:
+				return t.sendTaskFailure(TaskFailureCommandExitedNonzero{stderr: stderr})
+			case status.Signaled() && status.Signal() == syscall.SIGKILL:
+				return t.sendTaskFailure(TaskFailureCommandKilled{stderr: stderr})
+			}
+		}
+		return t.sendTaskFailure(TaskFailureUnknown{err})
 	}
-	log.InfoD("exec-command-end", logger.M{"execution_name": executionName})
+	t.logger.Info("exec-command-end")
 
-	// AWS requires JSON output. If it isn't, then make it so.
-	output := stdoutbuf.String()
-	var out map[string]interface{}
-	if err := json.Unmarshal([]byte(output), &out); err != nil {
-		wrappedErr := fmt.Errorf("Worker must output json object to stdout: %s", err)
-		return t.handleProcessError(ctx, "process-output", executionName, wrappedErr)
+	// AWS / states language requires JSON output
+	taskOutput := taskOutputFromStdout(stdoutbuf.String())
+	var taskOutputMap map[string]interface{}
+	if err := json.Unmarshal([]byte(taskOutput), &taskOutputMap); err != nil {
+		return t.sendTaskFailure(TaskFailureTaskOutputNotJSON{output: taskOutput})
 	}
-	out["_EXECUTION_NAME"] = executionName
+	if executionName != nil {
+		taskOutputMap["_EXECUTION_NAME"] = *executionName
+	}
 
-	marshaledOut, err := json.Marshal(out)
+	finalTaskOutput, err := json.Marshal(taskOutputMap)
 	if err != nil {
-		return t.handleProcessError(ctx, "process-output", executionName, err)
+		return t.sendTaskFailure(TaskFailureUnknown{fmt.Errorf("JSON output re-marshalling failed. This should never happen. %s", err)})
 	}
 	_, err = t.sfnapi.SendTaskSuccessWithContext(ctx, &sfn.SendTaskSuccessInput{
-		Output:    aws.String(string(marshaledOut)),
+		Output:    aws.String(string(finalTaskOutput)),
 		TaskToken: &t.taskToken,
 	})
 	if err != nil {
-		log.ErrorD(
-			"process-success", logger.M{"error": err.Error(), "execution_name": executionName},
-		)
+		t.logger.ErrorD("send-task-success-error", logger.M{"error": err.Error()})
 	}
 
 	return err
+}
+
+func (t *TaskRunner) handleSignals(ctx context.Context) {
+	sigChan := make(chan os.Signal)
+	signal.Notify(sigChan)
+	defer signal.Stop(sigChan)
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case sigReceived := <-sigChan:
+			if t.execCmd.Process == nil {
+				continue
+			}
+			pid := t.execCmd.Process.Pid
+			// SIGTERM is special. If it gets sent to sfncli, initiate a docker-stop like shutdown process:
+			// - forward the SIGTERM to the command
+			// - after a grace period send SIGKILL to the command if it's still running
+			if sigReceived == syscall.SIGTERM {
+				t.receivedSigterm = true
+				go func(pidtokill int) {
+					time.Sleep(t.sigtermGracePeriod)
+					signalProcess(pidtokill, os.Signal(syscall.SIGKILL))
+				}(pid)
+			}
+			signalProcess(pid, sigReceived)
+		}
+		if t.receivedSigterm {
+			return
+		}
+	}
+}
+
+func signalProcess(pid int, signal os.Signal) {
+	proc := os.Process{Pid: pid}
+	proc.Signal(signal)
+}
+
+func parseCustomErrorNameFromStdout(stdout string) string {
+	var customError struct {
+		ErrorName string `json:"error_name"`
+	}
+	json.Unmarshal([]byte(taskOutputFromStdout(stdout)), &customError)
+	return customError.ErrorName
+}
+
+func taskOutputFromStdout(stdout string) string {
+	stdout = strings.TrimSpace(stdout) // remove trailing newline
+	stdoutLines := strings.Split(stdout, "\n")
+	taskOutput := ""
+	if len(stdoutLines) > 0 {
+		taskOutput = stdoutLines[len(stdoutLines)-1]
+	}
+	return taskOutput
 }

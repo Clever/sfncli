@@ -31,6 +31,9 @@ build:
 
 install_deps: $(GOPATH)/bin/glide
 	$(GOPATH)/bin/glide install -v
+	go build -o ./mockgen ./vendor/github.com/golang/mock/mockgen
+	rm -rf gen-go/mocksfn && mkdir -p gen-go/mocksfn
+	./mockgen -source vendor/github.com/aws/aws-sdk-go/service/sfn/sfniface/interface.go -destination gen-go/mocksfn/mocksfn.go -package mocksfn
 
 release:
 	mkdir -p release

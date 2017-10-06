@@ -1,6 +1,6 @@
 # sfncli
 
-Utility to create AWS Step Function activities out of command line programs.
+Utility to create AWS Step Function (SFN) activities out of command line programs.
 
 ## Usage
 
@@ -30,11 +30,30 @@ sfncli -activityname sleep-100 -region us-west-2 -workername sleep-worker -cmd s
 - On startup, call [`CreateActivity`](http://docs.aws.amazon.com/step-functions/latest/apireference/API_CreateActivity.html) to register an [Activity](http://docs.aws.amazon.com/step-functions/latest/dg/concepts-activities.html) with Step Functions.
 - Begin polling [`GetActivityTask`](http://docs.aws.amazon.com/step-functions/latest/apireference/API_GetActivityTask.html) for tasks.
 - Get a task. Take the JSON input for the task and
-  - if it's a JSON object, use this as the last arg to the command.
-  - if it's anything else (e.g. JSON array), an error is thown
-  - if JSON object has an `_EXECUTION_NAME` property, a corresponding env var called `_EXECUTION_NAME` is added to the sub-process environment
+  - if it's a JSON object, use this as the last arg to the `cmd` passed to `sfncli`.
+  - if it's anything else (e.g. JSON array), an error is thrown.
+  - if the task input an `_EXECUTION_NAME` key, it is added to the environment of the `cmd` as `_EXECUTION_NAME`.
 - Start [`SendTaskHeartbeat`](http://docs.aws.amazon.com/step-functions/latest/apireference/API_SendTaskHeartbeat.html) loop.
-- Call [`SendTaskFailure`](http://docs.aws.amazon.com/step-functions/latest/apireference/API_SendTaskFailure.html) / [`SendTaskSuccess`](http://docs.aws.amazon.com/step-functions/latest/apireference/API_SendTaskSuccess.html) when command returns.
+- When the command exits:
+  - Call [`SendTaskFailure`](http://docs.aws.amazon.com/step-functions/latest/apireference/API_SendTaskFailure.html) if it exited nonzero, was killed, or `sfncli` received SIGTERM.
+  - Call [`SendTaskSuccess`](http://docs.aws.amazon.com/step-functions/latest/apireference/API_SendTaskSuccess.html) otherwise.
+    Parse the last line of the `stdout` of the command as the output for the task (it [must be JSON](https://states-language.net/spec.html#data)).
+
+## Error names
+
+[Error names](https://states-language.net/spec.html#error-names) in SFN state machines are useful for debugging and setting up branching/retry logic in state machine definitions.
+`sfncli` will report the following error names if it encounters errors it can identify:
+
+- `sfncli.TaskInputNotJSON`: input to the task was not JSON
+- `sfncli.CommandNotFound`: the command passed to `sfncli` was not found
+- `sfncli.CommandKilled`: the command process received SIGKILL
+- `sfncli.CommandExitedNonzero`: the command process exited with a nonzero exit code
+- `sfncli.TaskOutputNotJSON`: the task output (last line of command's `stdout`) was not JSON
+- `sfncli.CommandTerminated`: `sfncli` or the command received SIGTERM
+- `sfncli.Unknown`: unexpected / unclassified errors
+
+Additionally, the `cmd` can report a custom a custom error name in its output by including an `error_name` key.
+`sfncli` will look for this key if the command exits with a nonzero exit code, and if it exists it will report this error name instead of `sfncli.CommandExitedNonzero`.
 
 ## Local testing
 
@@ -71,7 +90,3 @@ aws --region us-west-2 stepfunctions start-execution --state-machine-arn arn:aws
 ```
 
 You should see `echo` run with the argument `{"hello": "world"}`.
-
-## Usage
-
-TODO

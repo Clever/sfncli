@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -64,7 +65,7 @@ func main() {
 
 	mainCtx, mainCtxCancel := context.WithCancel(context.Background())
 	c := make(chan os.Signal, 1)
-	signal.Notify(c, os.Interrupt)
+	signal.Notify(c, os.Interrupt, os.Signal(syscall.SIGTERM))
 	go func() {
 		for _ = range c {
 			// sig is a ^C, handle it

@@ -10,3 +10,5 @@
 vendor/
 build/
 release/
+mockgen
+gen-go/mocksfn
