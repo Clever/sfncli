@@ -19,7 +19,7 @@ const mockTaskToken = "taskToken"
 
 const emptyTaskInput = "{}"
 
-var testScriptsDir = os.Getenv("GOPATH") + "/src/github.com/Clever/sfncli/cmd/sfncli/test_scripts"
+var testScriptsDir = "./test_scripts"
 
 func TestTaskFailureTaskInputNotJSON(t *testing.T) {
 	t.Parallel()
