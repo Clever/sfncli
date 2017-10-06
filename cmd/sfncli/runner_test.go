@@ -220,6 +220,8 @@ func TestTaskFailureCommandTerminated(t *testing.T) {
 			TaskToken: aws.String(mockTaskToken),
 		})
 		taskRunner := NewTaskRunner(path.Join(testScriptsDir, cmd), mockSFN, mockTaskToken)
+		// lower the grace period so this test doesn't take forever
+		taskRunner.sigtermGracePeriod = 5 * time.Second
 		go func() {
 			time.Sleep(1 * time.Second)
 			process, _ := os.FindProcess(os.Getpid())

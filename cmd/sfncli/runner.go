@@ -25,12 +25,13 @@ const maxTaskOutputLength = 32768
 const maxTaskFailureCauseLength = 32768
 
 type TaskRunner struct {
-	sfnapi          sfniface.SFNAPI
-	taskToken       string
-	cmd             string
-	logger          logger.KayveeLogger
-	execCmd         *exec.Cmd
-	receivedSigterm bool
+	sfnapi             sfniface.SFNAPI
+	taskToken          string
+	cmd                string
+	logger             logger.KayveeLogger
+	execCmd            *exec.Cmd
+	receivedSigterm    bool
+	sigtermGracePeriod time.Duration
 }
 
 func NewTaskRunner(cmd string, sfnapi sfniface.SFNAPI, taskToken string) TaskRunner {
@@ -39,6 +40,9 @@ func NewTaskRunner(cmd string, sfnapi sfniface.SFNAPI, taskToken string) TaskRun
 		taskToken: taskToken,
 		cmd:       cmd,
 		logger:    logger.New("sfncli"),
+		// set the default grace period to something slightly lower than the default
+		// docker stop grace period in ECS (30s)
+		sigtermGracePeriod: 25 * time.Second,
 	}
 }
 
@@ -154,11 +158,11 @@ func (t *TaskRunner) handleSignals(ctx context.Context) {
 			pid := t.execCmd.Process.Pid
 			// SIGTERM is special. If it gets sent to sfncli, initiate a docker-stop like shutdown process:
 			// - forward the SIGTERM to the command
-			// - after a grace period (5s) send SIGKILL to the command if it's still running
+			// - after a grace period send SIGKILL to the command if it's still running
 			if sigReceived == syscall.SIGTERM {
 				t.receivedSigterm = true
 				go func(pidtokill int) {
-					time.Sleep(5 * time.Second) // grace period
+					time.Sleep(t.sigtermGracePeriod)
 					signalProcess(pidtokill, os.Signal(syscall.SIGKILL))
 				}(pid)
 			}
