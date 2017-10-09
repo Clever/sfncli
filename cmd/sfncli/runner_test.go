@@ -44,6 +44,27 @@ func TestTaskFailureTaskInputNotJSON(t *testing.T) {
 
 }
 
+func TestTaskOutputEmptyStringAsJSON(t *testing.T) {
+	t.Parallel()
+	testCtx, testCtxCancel := context.WithCancel(context.Background())
+	defer testCtxCancel()
+	cmd := "stdout_empty_output.sh"
+	cmdArgs := []string{}
+	taskInput := "{}"
+
+	controller := gomock.NewController(t)
+	defer controller.Finish()
+	mockSFN := mocksfn.NewMockSFNAPI(controller)
+	mockSFN.EXPECT().SendTaskSuccessWithContext(gomock.Any(), &sfn.SendTaskSuccessInput{
+		TaskToken: aws.String(mockTaskToken),
+		Output:    aws.String("{}"),
+	})
+	taskRunner := NewTaskRunner(path.Join(testScriptsDir, cmd), mockSFN, mockTaskToken)
+	err := taskRunner.Process(testCtx, cmdArgs, taskInput)
+	require.NoError(t, err)
+
+}
+
 func TestTaskFailureCommandNotFound(t *testing.T) {
 	t.Parallel()
 	testCtx, testCtxCancel := context.WithCancel(context.Background())
