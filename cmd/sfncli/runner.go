@@ -121,7 +121,9 @@ func (t *TaskRunner) Process(ctx context.Context, args []string, input string) e
 	// AWS / states language requires JSON output
 	taskOutput := taskOutputFromStdout(stdoutbuf.String())
 	var taskOutputMap map[string]interface{}
-	if err := json.Unmarshal([]byte(taskOutput), &taskOutputMap); err != nil {
+	if len(taskOutput) == 0 { // Treat "" output like {}.  Makes worker implementions easier.
+		taskOutputMap = map[string]interface{}{}
+	} else if err := json.Unmarshal([]byte(taskOutput), &taskOutputMap); err != nil {
 		return t.sendTaskFailure(TaskFailureTaskOutputNotJSON{output: taskOutput})
 	}
 	if executionName != nil {
