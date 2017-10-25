@@ -35,6 +35,9 @@ install_deps: $(GOPATH)/bin/glide
 	rm -rf gen-go/mocksfn && mkdir -p gen-go/mocksfn
 	./mockgen -source vendor/github.com/aws/aws-sdk-go/service/sfn/sfniface/interface.go -destination gen-go/mocksfn/mocksfn.go -package mocksfn
 
+run: build
+	./build/sfncli -activityname $$_DEPLOY_ENV--echo -region us-west-2 -workername `hostname` -cmd echo
+
 release:
 	mkdir -p release
 	GOOS=linux GOARCH=amd64 go build -ldflags="-s -w -X main.Version=$(VERSION)" \
