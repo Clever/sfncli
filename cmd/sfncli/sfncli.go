@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"os/signal"
 	"syscall"
@@ -26,6 +27,7 @@ func main() {
 	workerName := flag.String("workername", "", "The worker name to send to AWS Step Functions when processing a task. Environment variables are expanded. The magic string MAGIC_ECS_TASK_ARN will be expanded to the ECS task ARN via the metadata service.")
 	cmd := flag.String("cmd", "", "The command to run to process activity tasks.")
 	region := flag.String("region", "", "The AWS region to send Step Function API calls. Defaults to AWS_REGION.")
+	workDirectory := flag.String("workdirectory", "", "Create the specified directory pass the path using the environment variable WORK_DIR to the cmd processing a task. Default is to not create the path.")
 	printVersion := flag.Bool("version", false, "Print the version and exit.")
 
 	flag.Parse()
@@ -61,6 +63,13 @@ func main() {
 			fmt.Println("region or AWS_REGION is required")
 			os.Exit(1)
 		}
+	}
+	if *workDirectory != "" {
+		if err := validateWorkDirectory(*workDirectory); err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
+		defer os.RemoveAll(*workDirectory)
 	}
 
 	mainCtx, mainCtxCancel := context.WithCancel(context.Background())
@@ -128,7 +137,7 @@ func main() {
 
 			// Run the command. Treat unprocessed args (flag.Args()) as additional args to
 			// send to the command on every invocation of the command
-			taskRunner := NewTaskRunner(*cmd, sfnapi, token)
+			taskRunner := NewTaskRunner(*cmd, sfnapi, token, *workDirectory)
 			err = taskRunner.Process(taskCtx, flag.Args(), input)
 			if err != nil {
 				taskCtxCancel()
@@ -139,6 +148,31 @@ func main() {
 			taskCtxCancel()
 		}
 	}
+}
+
+// validateWorkDirectory ensures the directory exists and is writable
+func validateWorkDirectory(dirname string) error {
+	dirInfo, err := os.Stat(dirname)
+
+	// does not exist; create dir
+	if os.IsNotExist(err) {
+		fmt.Printf("creating dirname %s\n", dirname)
+		if err := os.MkdirAll(dirname, os.ModeTemporary|0700); err != nil {
+			return fmt.Errorf("workDirectory create error: %s", err)
+		}
+
+		return nil
+	}
+
+	// dir exists; ensure permissions and mode
+	if !dirInfo.IsDir() {
+		return fmt.Errorf("workDirectory is not a directory")
+	}
+	if _, err := ioutil.TempFile(dirname, ""); err != nil {
+		return fmt.Errorf("workDirectory write error: %s", err)
+	}
+
+	return nil
 }
 
 func taskHeartbeat(ctx context.Context, sfnapi sfniface.SFNAPI, token string) error {
