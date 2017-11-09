@@ -32,14 +32,16 @@ type TaskRunner struct {
 	execCmd            *exec.Cmd
 	receivedSigterm    bool
 	sigtermGracePeriod time.Duration
+	workDirectory      string
 }
 
-func NewTaskRunner(cmd string, sfnapi sfniface.SFNAPI, taskToken string) TaskRunner {
+func NewTaskRunner(cmd string, sfnapi sfniface.SFNAPI, taskToken string, workDirectory string) TaskRunner {
 	return TaskRunner{
-		sfnapi:    sfnapi,
-		taskToken: taskToken,
-		cmd:       cmd,
-		logger:    logger.New("sfncli"),
+		sfnapi:        sfnapi,
+		taskToken:     taskToken,
+		cmd:           cmd,
+		logger:        logger.New("sfncli"),
+		workDirectory: workDirectory,
 		// set the default grace period to something slightly lower than the default
 		// docker stop grace period in ECS (30s)
 		sigtermGracePeriod: 25 * time.Second,
@@ -77,6 +79,10 @@ func (t *TaskRunner) Process(ctx context.Context, args []string, input string) e
 	t.execCmd = exec.CommandContext(ctx, t.cmd, args...)
 	if executionName != nil {
 		t.execCmd.Env = append(os.Environ(), "_EXECUTION_NAME="+*executionName)
+	}
+	if t.workDirectory != "" {
+		t.execCmd.Env = append(t.execCmd.Env, "WORK_DIR="+t.workDirectory)
+		defer os.RemoveAll(t.workDirectory)
 	}
 
 	// Write the stdout and stderr of the process to both this process' stdout and stderr
