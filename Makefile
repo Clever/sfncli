@@ -9,7 +9,7 @@ EXECUTABLE_PKG := github.com/Clever/sfncli/cmd/sfncli
 
 .PHONY: all test $(PKGS) build install_deps release clean
 
-$(eval $(call golang-version-check,1.8))
+$(eval $(call golang-version-check,1.9))
 
 GLIDE_VERSION := v0.12.3
 $(GOPATH)/src/github.com/Masterminds/glide:
@@ -29,8 +29,6 @@ build:
 	mkdir -p build
 	go build -ldflags="-X main.Version=$(VERSION)" -o build/$(EXECUTABLE) $(EXECUTABLE_PKG)
 
-install_deps: $(GOPATH)/bin/glide
-	$(GOPATH)/bin/glide install -v
 	go build -o ./mockgen ./vendor/github.com/golang/mock/mockgen
 	rm -rf gen-go/mocksfn && mkdir -p gen-go/mocksfn
 	./mockgen -source vendor/github.com/aws/aws-sdk-go/service/sfn/sfniface/interface.go -destination gen-go/mocksfn/mocksfn.go -package mocksfn
@@ -47,3 +45,7 @@ release:
 
 clean:
 	rm -rf build release
+
+
+install_deps: golang-dep-vendor-deps
+	$(call golang-dep-vendor)
