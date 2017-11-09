@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -81,8 +82,14 @@ func (t *TaskRunner) Process(ctx context.Context, args []string, input string) e
 		t.execCmd.Env = append(os.Environ(), "_EXECUTION_NAME="+*executionName)
 	}
 	if t.workDirectory != "" {
+		// make a new tmpDir for every run
+		tmpDir, err := ioutil.TempDir(t.workDirectory, "")
+		if err != nil {
+			return err
+		}
+
 		t.execCmd.Env = append(t.execCmd.Env, "WORK_DIR="+t.workDirectory)
-		defer os.RemoveAll(t.workDirectory)
+		defer os.RemoveAll(tmpDir)
 	}
 
 	// Write the stdout and stderr of the process to both this process' stdout and stderr

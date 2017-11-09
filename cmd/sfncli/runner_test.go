@@ -296,16 +296,16 @@ func TestTaskWorkDirectorySetup(t *testing.T) {
 	t.Parallel()
 	testCtx, testCtxCancel := context.WithCancel(context.Background())
 	defer testCtxCancel()
-	cmd := "env_echo.py"
+	cmd := "echo_workdir.sh"
 	cmdArgs := []string{}
-	taskInput := "{\"key\": \"WORK_DIR\"}" // output a env var using the key
+	taskInput := "{}"
 
 	controller := gomock.NewController(t)
 	defer controller.Finish()
 	mockSFN := mocksfn.NewMockSFNAPI(controller)
 	mockSFN.EXPECT().SendTaskSuccessWithContext(gomock.Any(), &sfn.SendTaskSuccessInput{
 		TaskToken: aws.String(mockTaskToken),
-		Output:    aws.String("{\"result\":\"/tmp\"}"), // returns the result of WORK_DIR
+		Output:    aws.String("{\"work_dir\":\"/tmp\"}"), // returns the result of WORK_DIR
 	})
 	taskRunner := NewTaskRunner(path.Join(testScriptsDir, cmd), mockSFN, mockTaskToken, "/tmp")
 	err := taskRunner.Process(testCtx, cmdArgs, taskInput)
@@ -316,16 +316,16 @@ func TestTaskWorkDirectoryUnsetByDefault(t *testing.T) {
 	t.Parallel()
 	testCtx, testCtxCancel := context.WithCancel(context.Background())
 	defer testCtxCancel()
-	cmd := "env_echo.py"
+	cmd := "echo_workdir.sh"
 	cmdArgs := []string{}
-	taskInput := "{\"key\": \"WORK_DIR\"}" // output a env var using the key
+	taskInput := "{}" // output a env var using the key
 
 	controller := gomock.NewController(t)
 	defer controller.Finish()
 	mockSFN := mocksfn.NewMockSFNAPI(controller)
 	mockSFN.EXPECT().SendTaskSuccessWithContext(gomock.Any(), &sfn.SendTaskSuccessInput{
 		TaskToken: aws.String(mockTaskToken),
-		Output:    aws.String("{\"result\":null}"), // returns the result of WORK_DIR
+		Output:    aws.String("{\"work_dir\":\"\"}"), // returns the result of WORK_DIR
 	})
 	taskRunner := NewTaskRunner(path.Join(testScriptsDir, cmd), mockSFN, mockTaskToken, "")
 	err := taskRunner.Process(testCtx, cmdArgs, taskInput)
@@ -336,7 +336,7 @@ func TestTaskWorkDirectoryCleaned(t *testing.T) {
 	t.Parallel()
 	testCtx, testCtxCancel := context.WithCancel(context.Background())
 	defer testCtxCancel()
-	cmd := "touch_file.sh"
+	cmd := "create_file.sh"
 	cmdArgs := []string{}
 	taskInput := "{}"
 
@@ -347,11 +347,12 @@ func TestTaskWorkDirectoryCleaned(t *testing.T) {
 		TaskToken: aws.String(mockTaskToken),
 		Output:    aws.String("{\"file\":\"/tmp/test/hello\"}"), // returns the result of WORK_DIR
 	})
+	os.MkdirAll("/tmp/test", os.ModeDir|0777) // base path is created by cmd/sfncli/sfncli.go
+	defer os.RemoveAll("/tmp/test")
 	taskRunner := NewTaskRunner(path.Join(testScriptsDir, cmd), mockSFN, mockTaskToken, "/tmp/test")
 	err := taskRunner.Process(testCtx, cmdArgs, taskInput)
-	if _, err := os.Stat("/tmp/test/hello"); os.IsExist(err) {
+	require.NoError(t, err)
+	if _, err := os.Stat("/tmp/test"); os.IsExist(err) {
 		require.Fail(t, "directory /tmp/test not deleted")
 	}
-
-	require.NoError(t, err)
 }

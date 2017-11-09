@@ -4,9 +4,9 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"syscall"
 	"time"
 
@@ -65,12 +65,11 @@ func main() {
 		}
 	}
 	if *workDirectory != "" {
-		dir, err := filepath.Abs(*workDirectory)
-		if err != nil {
-			fmt.Printf("workDirectory is invalid: %s\n", err)
+		if err := validateWorkDirectory(*workDirectory); err != nil {
+			fmt.Println(err)
 			os.Exit(1)
 		}
-		*workDirectory = dir
+		defer os.RemoveAll(*workDirectory)
 	}
 
 	mainCtx, mainCtxCancel := context.WithCancel(context.Background())
@@ -149,6 +148,31 @@ func main() {
 			taskCtxCancel()
 		}
 	}
+}
+
+// validateWorkDirectory ensures the directory exists and is writable
+func validateWorkDirectory(dirname string) error {
+	dirInfo, err := os.Stat(dirname)
+
+	// does not exist; create dir
+	if os.IsNotExist(err) {
+		fmt.Printf("creating dirname %s\n", dirname)
+		if err := os.MkdirAll(dirname, os.ModeTemporary|0700); err != nil {
+			return fmt.Errorf("workDirectory create error: %s", err)
+		}
+
+		return nil
+	}
+
+	// dir exists; ensure permissions and mode
+	if !dirInfo.IsDir() {
+		return fmt.Errorf("workDirectory is not a directory")
+	}
+	if _, err := ioutil.TempFile(dirname, ""); err != nil {
+		return fmt.Errorf("workDirectory write error: %s", err)
+	}
+
+	return nil
 }
 
 func taskHeartbeat(ctx context.Context, sfnapi sfniface.SFNAPI, token string) error {
