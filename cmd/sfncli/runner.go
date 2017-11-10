@@ -25,6 +25,7 @@ import (
 const maxTaskOutputLength = 32768
 const maxTaskFailureCauseLength = 32768
 
+// TaskRunner manages resources for executing a task
 type TaskRunner struct {
 	sfnapi             sfniface.SFNAPI
 	taskToken          string
@@ -36,6 +37,7 @@ type TaskRunner struct {
 	workDirectory      string
 }
 
+// NewTaskRunner instantiates a new TaskRunner
 func NewTaskRunner(cmd string, sfnapi sfniface.SFNAPI, taskToken string, workDirectory string) TaskRunner {
 	return TaskRunner{
 		sfnapi:        sfnapi,
@@ -81,14 +83,15 @@ func (t *TaskRunner) Process(ctx context.Context, args []string, input string) e
 	if executionName != nil {
 		t.execCmd.Env = append(os.Environ(), "_EXECUTION_NAME="+*executionName)
 	}
+	tmpDir := ""
 	if t.workDirectory != "" {
 		// make a new tmpDir for every run
-		tmpDir, err := ioutil.TempDir(t.workDirectory, "")
+		tmpDir, err = ioutil.TempDir(t.workDirectory, "")
 		if err != nil {
 			return err
 		}
 
-		t.execCmd.Env = append(t.execCmd.Env, "WORK_DIR="+t.workDirectory)
+		t.execCmd.Env = append(t.execCmd.Env, fmt.Sprintf("WORK_DIR=%s", tmpDir))
 		defer os.RemoveAll(tmpDir)
 	}
 
@@ -102,7 +105,11 @@ func (t *TaskRunner) Process(ctx context.Context, args []string, input string) e
 	// forward signals to the command, handle SIGTERM
 	go t.handleSignals(ctx)
 
-	t.logger.InfoD("exec-command-start", logger.M{"args": args, "cmd": t.cmd})
+	if tmpDir == "" {
+		t.logger.InfoD("exec-command-start", logger.M{"args": args, "cmd": t.cmd})
+	} else {
+		t.logger.InfoD("exec-command-start", logger.M{"args": args, "cmd": t.cmd, "workdirectory": tmpDir})
+	}
 	if err := t.execCmd.Run(); err != nil {
 		stderr := strings.TrimSpace(stderrbuf.String()) // remove trailing newline
 		customErrorName := parseCustomErrorNameFromStdout(stdoutbuf.String())

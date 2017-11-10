@@ -20,6 +20,7 @@ import (
 
 var log = logger.New("sfncli")
 
+// Version denotes the version of sfncli. A value is injected at compilation via ldflags
 var Version string
 
 func main() {
@@ -69,7 +70,6 @@ func main() {
 			fmt.Println(err)
 			os.Exit(1)
 		}
-		defer os.RemoveAll(*workDirectory)
 	}
 
 	mainCtx, mainCtxCancel := context.WithCancel(context.Background())
@@ -91,7 +91,11 @@ func main() {
 		fmt.Printf("error creating activity: %s\n", err)
 		os.Exit(1)
 	}
-	log.InfoD("startup", logger.M{"activity": *createOutput.ActivityArn, "worker-name": *workerName})
+	log.InfoD("startup", logger.M{
+		"activity":       *createOutput.ActivityArn,
+		"worker-name":    *workerName,
+		"work-directory": *workDirectory,
+	})
 
 	// run getactivitytask and get some work
 	// getactivitytask claims to initiate a polling loop, but it seems to return every few minutes with

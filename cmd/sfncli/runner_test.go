@@ -2,8 +2,10 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"path"
+	"strings"
 	"syscall"
 	"testing"
 	"time"
@@ -15,11 +17,43 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const mockTaskToken = "taskToken"
+const (
+	mockTaskToken  = "taskToken"
+	emptyTaskInput = "{}"
+	testScriptsDir = "./test_scripts"
+)
 
-const emptyTaskInput = "{}"
+type workdirMatcher struct {
+	taskToken      string
+	expectedPrefix string
+	foundWorkdir   string
+}
 
-var testScriptsDir = "./test_scripts"
+func (w workdirMatcher) String() string {
+	return "test the prefix of the work_dir value"
+}
+
+func (w *workdirMatcher) Matches(x interface{}) bool {
+	input, ok := x.(*sfn.SendTaskSuccessInput)
+	if !ok {
+		return false
+	}
+
+	// check token
+	if *input.TaskToken != w.taskToken {
+		return false
+	}
+
+	workdirBlob := struct {
+		Dir string `json:"work_dir"`
+	}{}
+	if err := json.Unmarshal([]byte(*input.Output), &workdirBlob); err != nil {
+		return false
+	}
+
+	w.foundWorkdir = workdirBlob.Dir
+	return strings.HasPrefix(workdirBlob.Dir, w.expectedPrefix)
+}
 
 func TestTaskFailureTaskInputNotJSON(t *testing.T) {
 	t.Parallel()
@@ -303,10 +337,10 @@ func TestTaskWorkDirectorySetup(t *testing.T) {
 	controller := gomock.NewController(t)
 	defer controller.Finish()
 	mockSFN := mocksfn.NewMockSFNAPI(controller)
-	mockSFN.EXPECT().SendTaskSuccessWithContext(gomock.Any(), &sfn.SendTaskSuccessInput{
-		TaskToken: aws.String(mockTaskToken),
-		Output:    aws.String("{\"work_dir\":\"/tmp\"}"), // returns the result of WORK_DIR
-	})
+	mockSFN.EXPECT().SendTaskSuccessWithContext(gomock.Any(), &workdirMatcher{
+		taskToken:      mockTaskToken,
+		expectedPrefix: "/tmp",
+	}) // returns the result of WORK_DIR
 	taskRunner := NewTaskRunner(path.Join(testScriptsDir, cmd), mockSFN, mockTaskToken, "/tmp")
 	err := taskRunner.Process(testCtx, cmdArgs, taskInput)
 	require.NoError(t, err)
@@ -343,16 +377,18 @@ func TestTaskWorkDirectoryCleaned(t *testing.T) {
 	controller := gomock.NewController(t)
 	defer controller.Finish()
 	mockSFN := mocksfn.NewMockSFNAPI(controller)
-	mockSFN.EXPECT().SendTaskSuccessWithContext(gomock.Any(), &sfn.SendTaskSuccessInput{
-		TaskToken: aws.String(mockTaskToken),
-		Output:    aws.String("{\"file\":\"/tmp/test/hello\"}"), // returns the result of WORK_DIR
-	})
+	dirMatcher := workdirMatcher{
+		taskToken:      mockTaskToken,
+		expectedPrefix: "/tmp/test",
+	}
+	mockSFN.EXPECT().SendTaskSuccessWithContext(gomock.Any(), &dirMatcher) // returns the result of WORK_DIR
+
 	os.MkdirAll("/tmp/test", os.ModeDir|0777) // base path is created by cmd/sfncli/sfncli.go
 	defer os.RemoveAll("/tmp/test")
 	taskRunner := NewTaskRunner(path.Join(testScriptsDir, cmd), mockSFN, mockTaskToken, "/tmp/test")
 	err := taskRunner.Process(testCtx, cmdArgs, taskInput)
 	require.NoError(t, err)
-	if _, err := os.Stat("/tmp/test"); os.IsExist(err) {
+	if _, err := os.Stat(dirMatcher.foundWorkdir); os.IsExist(err) {
 		require.Fail(t, "directory /tmp/test not deleted")
 	}
 }

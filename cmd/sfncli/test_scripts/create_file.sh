@@ -1,4 +1,4 @@
 #!/usr/bin/env bash
 
-echo "{\"file\":\"$WORK_DIR/hello\"}" > $WORK_DIR/hello
+echo "{\"work_dir\":\"$WORK_DIR\"}" > $WORK_DIR/hello
 cat $WORK_DIR/hello
