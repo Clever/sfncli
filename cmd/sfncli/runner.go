@@ -90,7 +90,7 @@ func (t *TaskRunner) Process(ctx context.Context, args []string, input string) e
 			return err
 		}
 
-		t.execCmd.Env = append(t.execCmd.Env, "WORK_DIR="+t.workDirectory)
+		t.execCmd.Env = append(t.execCmd.Env, fmt.Sprintf("WORK_DIR=%s", tmpDir))
 		defer os.RemoveAll(tmpDir)
 	}
 
