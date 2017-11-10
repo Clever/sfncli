@@ -25,6 +25,7 @@ import (
 const maxTaskOutputLength = 32768
 const maxTaskFailureCauseLength = 32768
 
+// TaskRunner manages resources for executing a task
 type TaskRunner struct {
 	sfnapi             sfniface.SFNAPI
 	taskToken          string
@@ -36,6 +37,7 @@ type TaskRunner struct {
 	workDirectory      string
 }
 
+// NewTaskRunner instantiates a new TaskRunner
 func NewTaskRunner(cmd string, sfnapi sfniface.SFNAPI, taskToken string, workDirectory string) TaskRunner {
 	return TaskRunner{
 		sfnapi:        sfnapi,

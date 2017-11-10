@@ -20,6 +20,7 @@ import (
 
 var log = logger.New("sfncli")
 
+// Version denotes the version of sfncli. A value is injected at compilation via ldflags
 var Version string
 
 func main() {
