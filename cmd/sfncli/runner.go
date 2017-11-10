@@ -83,9 +83,10 @@ func (t *TaskRunner) Process(ctx context.Context, args []string, input string) e
 	if executionName != nil {
 		t.execCmd.Env = append(os.Environ(), "_EXECUTION_NAME="+*executionName)
 	}
+	tmpDir := ""
 	if t.workDirectory != "" {
 		// make a new tmpDir for every run
-		tmpDir, err := ioutil.TempDir(t.workDirectory, "")
+		tmpDir, err = ioutil.TempDir(t.workDirectory, "")
 		if err != nil {
 			return err
 		}
@@ -104,7 +105,11 @@ func (t *TaskRunner) Process(ctx context.Context, args []string, input string) e
 	// forward signals to the command, handle SIGTERM
 	go t.handleSignals(ctx)
 
-	t.logger.InfoD("exec-command-start", logger.M{"args": args, "cmd": t.cmd})
+	if tmpDir == "" {
+		t.logger.InfoD("exec-command-start", logger.M{"args": args, "cmd": t.cmd})
+	} else {
+		t.logger.InfoD("exec-command-start", logger.M{"args": args, "cmd": t.cmd, "workdirectory": tmpDir})
+	}
 	if err := t.execCmd.Run(); err != nil {
 		stderr := strings.TrimSpace(stderrbuf.String()) // remove trailing newline
 		customErrorName := parseCustomErrorNameFromStdout(stdoutbuf.String())
