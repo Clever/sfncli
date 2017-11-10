@@ -70,7 +70,6 @@ func main() {
 			fmt.Println(err)
 			os.Exit(1)
 		}
-		defer os.RemoveAll(*workDirectory)
 	}
 
 	mainCtx, mainCtxCancel := context.WithCancel(context.Background())
