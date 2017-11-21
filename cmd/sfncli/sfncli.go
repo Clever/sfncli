@@ -179,7 +179,7 @@ func validateWorkDirectory(dirname string) error {
 }
 
 func taskHeartbeat(ctx context.Context, sfnapi sfniface.SFNAPI, token string) error {
-	heartbeat := time.NewTicker(10 * time.Second)
+	heartbeat := time.NewTicker(20 * time.Second)
 	defer heartbeat.Stop()
 	for {
 		select {
