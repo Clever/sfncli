@@ -100,13 +100,12 @@ func main() {
 	// run getactivitytask and get some work
 	// getactivitytask claims to initiate a polling loop, but it seems to return every few minutes with
 	// a nil error and empty output. So wrap it in a polling loop of our own
-	ticker := time.NewTicker(5 * time.Second)
 	for mainCtx.Err() == nil {
 		select {
 		case <-mainCtx.Done():
 			log.Info("getactivitytask-stop")
 			continue
-		case <-ticker.C:
+		default:
 			log.InfoD("getactivitytask-start", logger.M{"activity-arn": *createOutput.ActivityArn, "worker-name": *workerName})
 			getATOutput, err := sfnapi.GetActivityTaskWithContext(mainCtx, &sfn.GetActivityTaskInput{
 				ActivityArn: createOutput.ActivityArn,
