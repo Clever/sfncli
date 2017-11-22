@@ -195,6 +195,10 @@ func taskHeartbeat(ctx context.Context, sfnapi sfniface.SFNAPI, token string) er
 						return err
 					}
 				}
+				if err == context.Canceled {
+					// context was canceled while sending heartbeat
+					return nil
+				}
 				log.ErrorD("heartbeat-error-unknown", logger.M{"error": err.Error()}) // keep trying on unknown errors
 			}
 		}
