@@ -112,6 +112,10 @@ func main() {
 				WorkerName:  workerName,
 			})
 			if err != nil {
+				if err == context.Canceled {
+					log.Info("getactivitytask-stop")
+					continue
+				}
 				log.ErrorD("getactivitytask-error", logger.M{"error": err.Error()})
 				continue
 			}
