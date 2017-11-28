@@ -32,7 +32,7 @@ func (t TaskRunner) sendTaskFailure(err TaskFailureError) error {
 		TaskToken: &t.taskToken,
 	})
 	if sendErr != nil {
-		t.logger.ErrorD("send-task-failure-error", logger.M{"error": err.Error()})
+		t.logger.ErrorD("send-task-failure-error", logger.M{"error": sendErr.Error()})
 	}
 	return err
 }
