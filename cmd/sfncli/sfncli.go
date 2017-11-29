@@ -12,6 +12,7 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
+	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/cloudwatch"
 	"github.com/aws/aws-sdk-go/service/sfn"
@@ -117,7 +118,7 @@ func main() {
 				WorkerName:  workerName,
 			})
 			if err != nil {
-				if err == context.Canceled {
+				if err == context.Canceled || awsErr(err, request.CanceledErrorCode) {
 					log.Info("getactivitytask-stop")
 					continue
 				}
@@ -199,13 +200,10 @@ func taskHeartbeat(ctx context.Context, sfnapi sfniface.SFNAPI, token string) er
 			if _, err := sfnapi.SendTaskHeartbeatWithContext(ctx, &sfn.SendTaskHeartbeatInput{
 				TaskToken: aws.String(token),
 			}); err != nil {
-				if aerr, ok := err.(awserr.Error); ok {
-					switch aerr.Code() {
-					case sfn.ErrCodeInvalidToken, sfn.ErrCodeTaskDoesNotExist, sfn.ErrCodeTaskTimedOut:
-						return err
-					}
+				if awsErr(err, sfn.ErrCodeInvalidToken, sfn.ErrCodeTaskDoesNotExist, sfn.ErrCodeTaskTimedOut) {
+					return err
 				}
-				if err == context.Canceled {
+				if err == context.Canceled || awsErr(err, request.CanceledErrorCode) {
 					// context was canceled while sending heartbeat
 					return nil
 				}
@@ -213,4 +211,18 @@ func taskHeartbeat(ctx context.Context, sfnapi sfniface.SFNAPI, token string) er
 			}
 		}
 	}
+}
+
+func awsErr(err error, codes ...string) bool {
+	if err == nil {
+		return false
+	}
+	if aerr, ok := err.(awserr.Error); ok {
+		for _, code := range codes {
+			if aerr.Code() == code {
+				return true
+			}
+		}
+	}
+	return false
 }
