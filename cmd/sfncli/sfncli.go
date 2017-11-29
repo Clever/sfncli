@@ -12,7 +12,9 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
+	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/cloudwatch"
 	"github.com/aws/aws-sdk-go/service/sfn"
 	"github.com/aws/aws-sdk-go/service/sfn/sfniface"
 	"gopkg.in/Clever/kayvee-go.v6/logger"
@@ -83,6 +85,7 @@ func main() {
 	}()
 
 	// register the activity with AWS (it might already exist, which is ok)
+	cwapi := cloudwatch.New(session.New(), aws.NewConfig().WithRegion(*region))
 	sfnapi := sfn.New(session.New(), aws.NewConfig().WithRegion(*region))
 	createOutput, err := sfnapi.CreateActivityWithContext(mainCtx, &sfn.CreateActivityInput{
 		Name: activityName,
@@ -97,6 +100,9 @@ func main() {
 		"work-directory": *workDirectory,
 	})
 
+	cw := NewCloudWatchReporter(cwapi, *createOutput.ActivityArn)
+	go cw.ReportIdleTime(mainCtx, 60*time.Second)
+
 	// run getactivitytask and get some work
 	// getactivitytask claims to initiate a polling loop, but it seems to return every few minutes with
 	// a nil error and empty output. So wrap it in a polling loop of our own
@@ -104,21 +110,22 @@ func main() {
 		select {
 		case <-mainCtx.Done():
 			log.Info("getactivitytask-stop")
-			continue
 		default:
 			log.InfoD("getactivitytask-start", logger.M{"activity-arn": *createOutput.ActivityArn, "worker-name": *workerName})
+			getActivityTaskStart := time.Now()
 			getATOutput, err := sfnapi.GetActivityTaskWithContext(mainCtx, &sfn.GetActivityTaskInput{
 				ActivityArn: createOutput.ActivityArn,
 				WorkerName:  workerName,
 			})
 			if err != nil {
-				if err == context.Canceled {
+				if err == context.Canceled || awsErr(err, request.CanceledErrorCode) {
 					log.Info("getactivitytask-stop")
 					continue
 				}
 				log.ErrorD("getactivitytask-error", logger.M{"error": err.Error()})
 				continue
 			}
+			cw.CountIdleTime(time.Now().Sub(getActivityTaskStart))
 			if getATOutput.TaskToken == nil {
 				continue
 			}
@@ -193,13 +200,10 @@ func taskHeartbeat(ctx context.Context, sfnapi sfniface.SFNAPI, token string) er
 			if _, err := sfnapi.SendTaskHeartbeatWithContext(ctx, &sfn.SendTaskHeartbeatInput{
 				TaskToken: aws.String(token),
 			}); err != nil {
-				if aerr, ok := err.(awserr.Error); ok {
-					switch aerr.Code() {
-					case sfn.ErrCodeInvalidToken, sfn.ErrCodeTaskDoesNotExist, sfn.ErrCodeTaskTimedOut:
-						return err
-					}
+				if awsErr(err, sfn.ErrCodeInvalidToken, sfn.ErrCodeTaskDoesNotExist, sfn.ErrCodeTaskTimedOut) {
+					return err
 				}
-				if err == context.Canceled {
+				if err == context.Canceled || awsErr(err, request.CanceledErrorCode) {
 					// context was canceled while sending heartbeat
 					return nil
 				}
@@ -207,4 +211,18 @@ func taskHeartbeat(ctx context.Context, sfnapi sfniface.SFNAPI, token string) er
 			}
 		}
 	}
+}
+
+func awsErr(err error, codes ...string) bool {
+	if err == nil {
+		return false
+	}
+	if aerr, ok := err.(awserr.Error); ok {
+		for _, code := range codes {
+			if aerr.Code() == code {
+				return true
+			}
+		}
+	}
+	return false
 }
