@@ -111,11 +111,11 @@ func (t *TaskRunner) Process(ctx context.Context, args []string, input string) e
 		t.logger.InfoD("exec-command-start", logger.M{"args": args, "cmd": t.cmd, "workdirectory": tmpDir})
 	}
 	if err := t.execCmd.Run(); err != nil {
-		stderr := strings.TrimSpace(stderrbuf.String()) // remove trailing newline
-		customErrorName := parseCustomErrorNameFromStdout(stdoutbuf.String())
+		stderr := strings.TrimSpace(stderrbuf.String())                  // remove trailing newline
+		customError, _ := parseCustomErrorFromStdout(stdoutbuf.String()) // ignore parsing errors
 		if t.receivedSigterm {
-			if customErrorName != "" {
-				return t.sendTaskFailure(TaskFailureCustomErrorName{errorName: customErrorName, stderr: stderr})
+			if customError.ErrorName() != "" {
+				return t.sendTaskFailure(customError)
 			}
 			return t.sendTaskFailure(TaskFailureCommandTerminated{stderr: stderr})
 		}
@@ -123,8 +123,8 @@ func (t *TaskRunner) Process(ctx context.Context, args []string, input string) e
 		case *os.PathError:
 			return t.sendTaskFailure(TaskFailureCommandNotFound{path: err.Path})
 		case *exec.ExitError:
-			if customErrorName != "" {
-				return t.sendTaskFailure(TaskFailureCustomErrorName{errorName: customErrorName, stderr: stderr})
+			if customError.ErrorName() != "" {
+				return t.sendTaskFailure(customError)
 			}
 			status := err.ProcessState.Sys().(syscall.WaitStatus)
 			switch {
@@ -201,12 +201,10 @@ func signalProcess(pid int, signal os.Signal) {
 	proc.Signal(signal)
 }
 
-func parseCustomErrorNameFromStdout(stdout string) string {
-	var customError struct {
-		ErrorName string `json:"error_name"`
-	}
-	json.Unmarshal([]byte(taskOutputFromStdout(stdout)), &customError)
-	return customError.ErrorName
+func parseCustomErrorFromStdout(stdout string) (TaskFailureCustom, error) {
+	var customError TaskFailureCustom
+	err := json.Unmarshal([]byte(taskOutputFromStdout(stdout)), &customError)
+	return customError, err
 }
 
 func taskOutputFromStdout(stdout string) string {
