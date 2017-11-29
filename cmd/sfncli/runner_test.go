@@ -68,7 +68,7 @@ func TestTaskFailureTaskInputNotJSON(t *testing.T) {
 	defer controller.Finish()
 	mockSFN := mocksfn.NewMockSFNAPI(controller)
 	mockSFN.EXPECT().SendTaskFailure(&sfn.SendTaskFailureInput{
-		Cause:     aws.String(expectedError.Error()),
+		Cause:     aws.String(expectedError.ErrorCause()),
 		Error:     aws.String(expectedError.ErrorName()),
 		TaskToken: aws.String(mockTaskToken),
 	})
@@ -111,7 +111,7 @@ func TestTaskFailureCommandNotFound(t *testing.T) {
 	defer controller.Finish()
 	mockSFN := mocksfn.NewMockSFNAPI(controller)
 	mockSFN.EXPECT().SendTaskFailure(&sfn.SendTaskFailureInput{
-		Cause:     aws.String(expectedError.Error()),
+		Cause:     aws.String(expectedError.ErrorCause()),
 		Error:     aws.String(expectedError.ErrorName()),
 		TaskToken: aws.String(mockTaskToken),
 	})
@@ -132,7 +132,7 @@ func TestTaskFailureCommandKilled(t *testing.T) {
 	defer controller.Finish()
 	mockSFN := mocksfn.NewMockSFNAPI(controller)
 	mockSFN.EXPECT().SendTaskFailure(&sfn.SendTaskFailureInput{
-		Cause:     aws.String(expectedError.Error()),
+		Cause:     aws.String(expectedError.ErrorCause()),
 		Error:     aws.String(expectedError.ErrorName()),
 		TaskToken: aws.String(mockTaskToken),
 	})
@@ -157,7 +157,7 @@ func TestTaskFailureCommandExitedNonzero(t *testing.T) {
 	defer controller.Finish()
 	mockSFN := mocksfn.NewMockSFNAPI(controller)
 	mockSFN.EXPECT().SendTaskFailure(&sfn.SendTaskFailureInput{
-		Cause:     aws.String(expectedError.Error()),
+		Cause:     aws.String(expectedError.ErrorCause()),
 		Error:     aws.String(expectedError.ErrorName()),
 		TaskToken: aws.String(mockTaskToken),
 	})
@@ -171,14 +171,14 @@ func TestTaskFailureCustomErrorName(t *testing.T) {
 	testCtx, testCtxCancel := context.WithCancel(context.Background())
 	defer testCtxCancel()
 	cmd := "stderr_stdout_exitcode.sh"
-	cmdArgs := []string{"stderr", `{"error_name": "custom.error_name"}`, "10"}
-	expectedError := TaskFailureCustomErrorName{errorName: "custom.error_name", stderr: "stderr"}
+	cmdArgs := []string{"stderr", `{"error": "custom.error_name", "cause": "bar"}`, "10"}
+	expectedError := TaskFailureCustom{Err: "custom.error_name", Cause: "bar"}
 
 	controller := gomock.NewController(t)
 	defer controller.Finish()
 	mockSFN := mocksfn.NewMockSFNAPI(controller)
 	mockSFN.EXPECT().SendTaskFailure(&sfn.SendTaskFailureInput{
-		Cause:     aws.String(expectedError.Error()),
+		Cause:     aws.String(expectedError.ErrorCause()),
 		Error:     aws.String(expectedError.ErrorName()),
 		TaskToken: aws.String(mockTaskToken),
 	})
@@ -199,7 +199,7 @@ func TestTaskFailureTaskOutputNotJSON(t *testing.T) {
 	defer controller.Finish()
 	mockSFN := mocksfn.NewMockSFNAPI(controller)
 	mockSFN.EXPECT().SendTaskFailure(&sfn.SendTaskFailureInput{
-		Cause:     aws.String(expectedError.Error()),
+		Cause:     aws.String(expectedError.ErrorCause()),
 		Error:     aws.String(expectedError.ErrorName()),
 		TaskToken: aws.String(mockTaskToken),
 	})
@@ -220,7 +220,7 @@ func TestTaskFailureCommandTerminated(t *testing.T) {
 		defer controller.Finish()
 		mockSFN := mocksfn.NewMockSFNAPI(controller)
 		mockSFN.EXPECT().SendTaskFailure(&sfn.SendTaskFailureInput{
-			Cause:     aws.String(expectedError.Error()),
+			Cause:     aws.String(expectedError.ErrorCause()),
 			Error:     aws.String(expectedError.ErrorName()),
 			TaskToken: aws.String(mockTaskToken),
 		})
@@ -238,14 +238,14 @@ func TestTaskFailureCommandTerminated(t *testing.T) {
 		testCtx, testCtxCancel := context.WithCancel(context.Background())
 		defer testCtxCancel()
 		cmd := "stderr_stdout_exitcode_onsigterm.sh"
-		cmdArgs := []string{"stderr", `{"error_name": "custom.error_name"}`, "1"}
-		expectedError := TaskFailureCustomErrorName{errorName: "custom.error_name", stderr: "stderr"}
+		cmdArgs := []string{"stderr", `{"error": "custom.error_name", "cause": "foo"}`, "1"}
+		expectedError := TaskFailureCustom{Err: "custom.error_name", Cause: "foo"}
 
 		controller := gomock.NewController(t)
 		defer controller.Finish()
 		mockSFN := mocksfn.NewMockSFNAPI(controller)
 		mockSFN.EXPECT().SendTaskFailure(&sfn.SendTaskFailureInput{
-			Cause:     aws.String(expectedError.Error()),
+			Cause:     aws.String(expectedError.ErrorCause()),
 			Error:     aws.String(expectedError.ErrorName()),
 			TaskToken: aws.String(mockTaskToken),
 		})
@@ -270,7 +270,7 @@ func TestTaskFailureCommandTerminated(t *testing.T) {
 		defer controller.Finish()
 		mockSFN := mocksfn.NewMockSFNAPI(controller)
 		mockSFN.EXPECT().SendTaskFailure(&sfn.SendTaskFailureInput{
-			Cause:     aws.String(expectedError.Error()),
+			Cause:     aws.String(expectedError.ErrorCause()),
 			Error:     aws.String(expectedError.ErrorName()),
 			TaskToken: aws.String(mockTaskToken),
 		})
