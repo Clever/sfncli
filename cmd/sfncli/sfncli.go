@@ -17,6 +17,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/cloudwatch"
 	"github.com/aws/aws-sdk-go/service/sfn"
 	"github.com/aws/aws-sdk-go/service/sfn/sfniface"
+	"golang.org/x/time/rate"
 	"gopkg.in/Clever/kayvee-go.v6/logger"
 )
 
@@ -103,20 +104,30 @@ func main() {
 	cw := NewCloudWatchReporter(cwapi, *createOutput.ActivityArn)
 	go cw.ReportIdleTime(mainCtx, 60*time.Second)
 
+	// allow one GetActivityTask per second, max 1 at a time
+	limiter := rate.NewLimiter(rate.Every(1*time.Second), 1)
+
 	// run getactivitytask and get some work
 	// getactivitytask claims to initiate a polling loop, but it seems to return every few minutes with
 	// a nil error and empty output. So wrap it in a polling loop of our own
 	for mainCtx.Err() == nil {
+		idleTimeStart := time.Now()
+		err := limiter.Wait(mainCtx)
+		cw.CountIdleTime(time.Now().Sub(idleTimeStart))
+		if err != nil {
+			continue
+		}
 		select {
 		case <-mainCtx.Done():
 			log.Info("getactivitytask-stop")
 		default:
 			log.InfoD("getactivitytask-start", logger.M{"activity-arn": *createOutput.ActivityArn, "worker-name": *workerName})
-			getActivityTaskStart := time.Now()
+			idleTimeStart = time.Now()
 			getATOutput, err := sfnapi.GetActivityTaskWithContext(mainCtx, &sfn.GetActivityTaskInput{
 				ActivityArn: createOutput.ActivityArn,
 				WorkerName:  workerName,
 			})
+			cw.CountIdleTime(time.Now().Sub(idleTimeStart))
 			if err != nil {
 				if err == context.Canceled || awsErr(err, request.CanceledErrorCode) {
 					log.Info("getactivitytask-stop")
@@ -125,7 +136,6 @@ func main() {
 				log.ErrorD("getactivitytask-error", logger.M{"error": err.Error()})
 				continue
 			}
-			cw.CountIdleTime(time.Now().Sub(getActivityTaskStart))
 			if getATOutput.TaskToken == nil {
 				continue
 			}
