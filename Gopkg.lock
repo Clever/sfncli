@@ -9,7 +9,7 @@
 
 [[projects]]
   name = "github.com/aws/aws-sdk-go"
-  packages = ["aws","aws/awserr","aws/awsutil","aws/client","aws/client/metadata","aws/corehandlers","aws/credentials","aws/credentials/ec2rolecreds","aws/credentials/endpointcreds","aws/credentials/stscreds","aws/defaults","aws/ec2metadata","aws/endpoints","aws/request","aws/session","aws/signer/v4","internal/shareddefaults","private/protocol","private/protocol/json/jsonutil","private/protocol/jsonrpc","private/protocol/query","private/protocol/query/queryutil","private/protocol/rest","private/protocol/xml/xmlutil","service/sfn","service/sfn/sfniface","service/sts"]
+  packages = ["aws","aws/awserr","aws/awsutil","aws/client","aws/client/metadata","aws/corehandlers","aws/credentials","aws/credentials/ec2rolecreds","aws/credentials/endpointcreds","aws/credentials/stscreds","aws/defaults","aws/ec2metadata","aws/endpoints","aws/request","aws/session","aws/signer/v4","internal/shareddefaults","private/protocol","private/protocol/json/jsonutil","private/protocol/jsonrpc","private/protocol/query","private/protocol/query/queryutil","private/protocol/rest","private/protocol/xml/xmlutil","service/cloudwatch","service/cloudwatch/cloudwatchiface","service/sfn","service/sfn/sfniface","service/sts"]
   revision = "0bac5578f9a18b467487ee2dda67fedb328e9452"
   version = "v1.12.4"
 
@@ -64,6 +64,18 @@
   revision = "3f523f4c14b6e925da10475eb0447c2f28614aac"
 
 [[projects]]
+  branch = "master"
+  name = "golang.org/x/net"
+  packages = ["context"]
+  revision = "a8b9294777976932365dabb6640cf1468d95c70f"
+
+[[projects]]
+  branch = "master"
+  name = "golang.org/x/time"
+  packages = ["rate"]
+  revision = "6dc17368e09b0e8634d71cac8168d853e869a0c7"
+
+[[projects]]
   name = "gopkg.in/Clever/kayvee-go.v6"
   packages = [".","logger","router"]
   revision = "e1e6fd8184162847c1123645e7058347a2fd3959"
@@ -78,6 +90,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "923f1ff540c7686c32dae4ec3d2692f5faee4607b800e5d76ea6184ef1c5a373"
+  inputs-digest = "f7e15934345d39d2993491cf0686838e01667afa5719b7952a9d4a741b60aa4b"
   solver-name = "gps-cdcl"
   solver-version = 1
