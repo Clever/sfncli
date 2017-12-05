@@ -7,34 +7,23 @@ VERSION := $(shell head -n 1 VERSION)
 EXECUTABLE := sfncli
 EXECUTABLE_PKG := github.com/Clever/sfncli/cmd/sfncli
 
-.PHONY: all test $(PKGS) build install_deps release clean
+.PHONY: all test $(PKGS) build install_deps release clean mocks
 
 $(eval $(call golang-version-check,1.9))
 
-GLIDE_VERSION := v0.12.3
-$(GOPATH)/src/github.com/Masterminds/glide:
-	git clone -b $(GLIDE_VERSION) https://github.com/Masterminds/glide.git $(GOPATH)/src/github.com/Masterminds/glide
-
-$(GOPATH)/bin/glide: $(GOPATH)/src/github.com/Masterminds/glide
-	go build -o $(GOPATH)/bin/glide github.com/Masterminds/glide
-
 all: test build release
 
-test: $(PKGS)
+test: mocks $(PKGS)
 
 $(PKGS): golang-test-all-deps
 	$(call golang-test-all,$@)
 
 build:
 	mkdir -p build
-	go build -ldflags="-X main.Version=$(VERSION)" -o build/$(EXECUTABLE) $(EXECUTABLE_PKG)
-
-	go build -o ./mockgen ./vendor/github.com/golang/mock/mockgen
-	rm -rf gen-go/mocksfn && mkdir -p gen-go/mocksfn
-	./mockgen -source vendor/github.com/aws/aws-sdk-go/service/sfn/sfniface/interface.go -destination gen-go/mocksfn/mocksfn.go -package mocksfn
+	go build -ldflags="-X main.Version=$(VERSION)" -o bin/$(EXECUTABLE) $(EXECUTABLE_PKG)
 
 run: build
-	./build/sfncli -activityname $$_DEPLOY_ENV--echo -region us-west-2 -workername `hostname` -cmd echo
+	./bin/sfncli -activityname $$_DEPLOY_ENV--echo -region us-west-2 -workername `hostname` -cmd echo
 
 release:
 	mkdir -p release
@@ -44,8 +33,15 @@ release:
 -o="$@/$(EXECUTABLE)-$(VERSION)-darwin-amd64" $(EXECUTABLE_PKG)
 
 clean:
-	rm -rf build release
+	rm -rf bin release
 
+mocks:
+	mkdir -p bin
+	go build -o ./bin/mockgen ./vendor/github.com/golang/mock/mockgen
+	rm -rf gen-go/mocksfn && mkdir -p gen-go/mocksfn
+	./bin/mockgen -source vendor/github.com/aws/aws-sdk-go/service/sfn/sfniface/interface.go -destination gen-go/mocksfn/mocksfn.go -package mocksfn
+	rm -rf gen-go/mockcloudwatch && mkdir -p gen-go/mockcloudwatch
+	./bin/mockgen -source vendor/github.com/aws/aws-sdk-go/service/cloudwatch/cloudwatchiface/interface.go -destination gen-go/mockcloudwatch/mockcloudwatch.go -package mockcloudwatch
 
 install_deps: golang-dep-vendor-deps
 	$(call golang-dep-vendor)

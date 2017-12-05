@@ -8,8 +8,6 @@
 .\#*
 
 vendor/
-build/
 bin/
 release/
-mockgen
-gen-go/mocksfn
+gen-go/
