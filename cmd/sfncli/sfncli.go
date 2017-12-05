@@ -86,7 +86,6 @@ func main() {
 	}()
 
 	// register the activity with AWS (it might already exist, which is ok)
-	cwapi := cloudwatch.New(session.New(), aws.NewConfig().WithRegion(*region))
 	sfnapi := sfn.New(session.New(), aws.NewConfig().WithRegion(*region))
 	createOutput, err := sfnapi.CreateActivityWithContext(mainCtx, &sfn.CreateActivityInput{
 		Name: activityName,
@@ -101,8 +100,10 @@ func main() {
 		"work-directory": *workDirectory,
 	})
 
+	// set up cloudwatch metric reporting
+	cwapi := cloudwatch.New(session.New(), aws.NewConfig().WithRegion(*region))
 	cw := NewCloudWatchReporter(cwapi, *createOutput.ActivityArn)
-	go cw.ReportIdleTime(mainCtx, 60*time.Second)
+	go cw.ReportActivePercent(mainCtx, 60*time.Second)
 
 	// allow one GetActivityTask per second, max 1 at a time
 	limiter := rate.NewLimiter(rate.Every(1*time.Second), 1)
@@ -111,10 +112,7 @@ func main() {
 	// getactivitytask claims to initiate a polling loop, but it seems to return every few minutes with
 	// a nil error and empty output. So wrap it in a polling loop of our own
 	for mainCtx.Err() == nil {
-		idleTimeStart := time.Now()
-		err := limiter.Wait(mainCtx)
-		cw.CountIdleTime(time.Now().Sub(idleTimeStart))
-		if err != nil {
+		if err := limiter.Wait(mainCtx); err != nil {
 			continue
 		}
 		select {
@@ -122,12 +120,10 @@ func main() {
 			log.Info("getactivitytask-stop")
 		default:
 			log.InfoD("getactivitytask-start", logger.M{"activity-arn": *createOutput.ActivityArn, "worker-name": *workerName})
-			idleTimeStart = time.Now()
 			getATOutput, err := sfnapi.GetActivityTaskWithContext(mainCtx, &sfn.GetActivityTaskInput{
 				ActivityArn: createOutput.ActivityArn,
 				WorkerName:  workerName,
 			})
-			cw.CountIdleTime(time.Now().Sub(idleTimeStart))
 			if err != nil {
 				if err == context.Canceled || awsErr(err, request.CanceledErrorCode) {
 					log.Info("getactivitytask-stop")
@@ -149,11 +145,17 @@ func main() {
 			var taskCtxCancel context.CancelFunc
 			taskCtx, taskCtxCancel = context.WithCancel(mainCtx)
 
+			// register active state
+			go cw.ActiveUntilContextDone(taskCtx)
+
 			// Begin sending heartbeats
 			go func() {
 				if err := taskHeartbeat(taskCtx, sfnapi, token); err != nil {
 					log.ErrorD("heartbeat-error", logger.M{"error": err.Error()})
-					taskCtxCancel() // if the heartbeat has an error, shut down the task
+					// taskHeartBeat only returns errors when they should be treated as critical
+					// e.g., if the task timed out
+					// shut down the command in these cases
+					taskCtxCancel()
 					return
 				}
 				log.InfoD("heartbeat-end", logger.M{"token": token})
