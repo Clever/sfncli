@@ -150,9 +150,9 @@ func main() {
 
 			// Begin sending heartbeats
 			go func() {
-				if err := taskHeartbeat(taskCtx, sfnapi, token); err != nil {
+				if err := taskHeartbeatLoop(taskCtx, sfnapi, token); err != nil {
 					log.ErrorD("heartbeat-error", logger.M{"error": err.Error()})
-					// taskHeartBeat only returns errors when they should be treated as critical
+					// taskHeartBeatLoop only returns errors when they should be treated as critical
 					// e.g., if the task timed out
 					// shut down the command in these cases
 					taskCtxCancel()
@@ -201,7 +201,10 @@ func validateWorkDirectory(dirname string) error {
 	return nil
 }
 
-func taskHeartbeat(ctx context.Context, sfnapi sfniface.SFNAPI, token string) error {
+func taskHeartbeatLoop(ctx context.Context, sfnapi sfniface.SFNAPI, token string) error {
+	if err := sendTaskHeartbeat(ctx, sfnapi, token); err != nil {
+		return err
+	}
 	heartbeat := time.NewTicker(20 * time.Second)
 	defer heartbeat.Stop()
 	for {
@@ -209,20 +212,27 @@ func taskHeartbeat(ctx context.Context, sfnapi sfniface.SFNAPI, token string) er
 		case <-ctx.Done():
 			return nil
 		case <-heartbeat.C:
-			if _, err := sfnapi.SendTaskHeartbeatWithContext(ctx, &sfn.SendTaskHeartbeatInput{
-				TaskToken: aws.String(token),
-			}); err != nil {
-				if awsErr(err, sfn.ErrCodeInvalidToken, sfn.ErrCodeTaskDoesNotExist, sfn.ErrCodeTaskTimedOut) {
-					return err
-				}
-				if err == context.Canceled || awsErr(err, request.CanceledErrorCode) {
-					// context was canceled while sending heartbeat
-					return nil
-				}
-				log.ErrorD("heartbeat-error-unknown", logger.M{"error": err.Error()}) // keep trying on unknown errors
+			if err := sendTaskHeartbeat(ctx, sfnapi, token); err != nil {
+				return err
 			}
 		}
 	}
+}
+
+func sendTaskHeartbeat(ctx context.Context, sfnapi sfniface.SFNAPI, token string) error {
+	if _, err := sfnapi.SendTaskHeartbeatWithContext(ctx, &sfn.SendTaskHeartbeatInput{
+		TaskToken: aws.String(token),
+	}); err != nil {
+		if awsErr(err, sfn.ErrCodeInvalidToken, sfn.ErrCodeTaskDoesNotExist, sfn.ErrCodeTaskTimedOut) {
+			return err
+		}
+		if err == context.Canceled || awsErr(err, request.CanceledErrorCode) {
+			// context was canceled while sending heartbeat
+			return nil
+		}
+		log.ErrorD("heartbeat-error-unknown", logger.M{"error": err.Error()}) // keep trying on unknown errors
+	}
+	return nil
 }
 
 func awsErr(err error, codes ...string) bool {
