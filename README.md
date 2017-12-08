@@ -13,6 +13,8 @@ Usage of sfncli:
     	The command to run to process activity tasks.
   -region string
     	The AWS region to send Step Function API calls. Defaults to AWS_REGION.
+  -cloudwatchregion string
+      The AWS region to send metric data. Defaults to the value of region.
   -version
     	Print the version and exit.
   -workername string
