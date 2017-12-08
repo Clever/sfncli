@@ -31,6 +31,7 @@ func main() {
 	workerName := flag.String("workername", "", "The worker name to send to AWS Step Functions when processing a task. Environment variables are expanded. The magic string MAGIC_ECS_TASK_ARN will be expanded to the ECS task ARN via the metadata service.")
 	cmd := flag.String("cmd", "", "The command to run to process activity tasks.")
 	region := flag.String("region", "", "The AWS region to send Step Function API calls. Defaults to AWS_REGION.")
+	cloudWatchRegion := flag.String("cloudwatchregion", "", "The AWS region to report metrics. Defaults to the value of the region flag.")
 	workDirectory := flag.String("workdirectory", "", "Create the specified directory pass the path using the environment variable WORK_DIR to the cmd processing a task. Default is to not create the path.")
 	printVersion := flag.Bool("version", false, "Print the version and exit.")
 
@@ -68,6 +69,9 @@ func main() {
 			os.Exit(1)
 		}
 	}
+	if *cloudWatchRegion == "" {
+		*cloudWatchRegion = *region
+	}
 	if *workDirectory != "" {
 		if err := validateWorkDirectory(*workDirectory); err != nil {
 			fmt.Println(err)
@@ -101,7 +105,7 @@ func main() {
 	})
 
 	// set up cloudwatch metric reporting
-	cwapi := cloudwatch.New(session.New(), aws.NewConfig().WithRegion(*region))
+	cwapi := cloudwatch.New(session.New(), aws.NewConfig().WithRegion(*cloudWatchRegion))
 	cw := NewCloudWatchReporter(cwapi, *createOutput.ActivityArn)
 	go cw.ReportActivePercent(mainCtx, 60*time.Second)
 
