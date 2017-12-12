@@ -26,7 +26,7 @@ Usage of sfncli:
 Example:
 
 ```
-sfncli -activityname sleep-100 -region us-west-2 -workername sleep-worker -cmd sleep 100
+sfncli -activityname sleep-100 -region us-west-2 --cloudwatchregion us-west-1 -workername sleep-worker -cmd sleep 100
 ```
 
 ## High-level logic
