@@ -13,6 +13,8 @@ Usage of sfncli:
     	The command to run to process activity tasks.
   -region string
     	The AWS region to send Step Function API calls. Defaults to AWS_REGION.
+  -cloudwatchregion string
+      The AWS region to send metric data. Defaults to the value of region.
   -version
     	Print the version and exit.
   -workername string
@@ -24,7 +26,7 @@ Usage of sfncli:
 Example:
 
 ```
-sfncli -activityname sleep-100 -region us-west-2 -workername sleep-worker -cmd sleep 100
+sfncli -activityname sleep-100 -region us-west-2 --cloudwatchregion us-west-1 -workername sleep-worker -cmd sleep 100
 ```
 
 ## High-level logic
