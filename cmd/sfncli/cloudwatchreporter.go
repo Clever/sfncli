@@ -61,13 +61,13 @@ func (c *CloudWatchReporter) ReportActivePercent(ctx context.Context, interval t
 
 // ActiveUntilContextDone sets active state to true, and sets it false when the context is done.
 func (c *CloudWatchReporter) ActiveUntilContextDone(ctx context.Context) {
-	c.setActiveState(true)
+	c.SetActiveState(true)
 	<-ctx.Done()
-	c.setActiveState(false)
+	c.SetActiveState(false)
 }
 
-// setActiveState sets whether the activity is currently working on a task or not.
-func (c *CloudWatchReporter) setActiveState(active bool) {
+// SetActiveState sets whether the activity is currently working on a task or not.
+func (c *CloudWatchReporter) SetActiveState(active bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if active == c.activeState {

@@ -62,9 +62,9 @@ func TestCloudWatchReporterReportsActiveFiftyPercent(t *testing.T) {
 	go func() {
 		// active for 500 ms in first second and second second
 		time.Sleep(500 * time.Millisecond)
-		cwr.setActiveState(true)
+		cwr.SetActiveState(true)
 		time.Sleep(1 * time.Second)
-		cwr.setActiveState(false)
+		cwr.SetActiveState(false)
 	}()
 	// check after 2 seconds, should be 50% active on both intervals
 	time.Sleep(2*time.Second + 100*time.Millisecond)
