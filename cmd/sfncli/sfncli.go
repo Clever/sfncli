@@ -108,6 +108,7 @@ func main() {
 	cwapi := cloudwatch.New(session.New(), aws.NewConfig().WithRegion(*cloudWatchRegion))
 	cw := NewCloudWatchReporter(cwapi, *createOutput.ActivityArn)
 	go cw.ReportActivePercent(mainCtx, 60*time.Second)
+	cw.SetActiveState(true)
 
 	// allow one GetActivityTask per second, max 1 at a time
 	limiter := rate.NewLimiter(rate.Every(1*time.Second), 1)
@@ -116,21 +117,20 @@ func main() {
 	// getactivitytask claims to initiate a polling loop, but it seems to return every few minutes with
 	// a nil error and empty output. So wrap it in a polling loop of our own
 	for mainCtx.Err() == nil {
-		cw.SetActiveState(true)
-		err := limiter.Wait(mainCtx)
-		cw.SetActiveState(false)
-		if err != nil {
+		if err := limiter.Wait(mainCtx); err != nil {
 			continue
 		}
 		select {
 		case <-mainCtx.Done():
 			log.Info("getactivitytask-stop")
 		default:
+			cw.SetActiveState(false)
 			log.InfoD("getactivitytask-start", logger.M{"activity-arn": *createOutput.ActivityArn, "worker-name": *workerName})
 			getATOutput, err := sfnapi.GetActivityTaskWithContext(mainCtx, &sfn.GetActivityTaskInput{
 				ActivityArn: createOutput.ActivityArn,
 				WorkerName:  workerName,
 			})
+			cw.SetActiveState(true)
 			if err != nil {
 				if err == context.Canceled || awsErr(err, request.CanceledErrorCode) {
 					log.Info("getactivitytask-stop")
@@ -151,9 +151,6 @@ func main() {
 			var taskCtx context.Context
 			var taskCtxCancel context.CancelFunc
 			taskCtx, taskCtxCancel = context.WithCancel(mainCtx)
-
-			// register active state
-			go cw.ActiveUntilContextDone(taskCtx)
 
 			// Begin sending heartbeats
 			go func() {
