@@ -116,7 +116,10 @@ func main() {
 	// getactivitytask claims to initiate a polling loop, but it seems to return every few minutes with
 	// a nil error and empty output. So wrap it in a polling loop of our own
 	for mainCtx.Err() == nil {
-		if err := limiter.Wait(mainCtx); err != nil {
+		cw.SetActiveState(true)
+		err := limiter.Wait(mainCtx)
+		cw.SetActiveState(false)
+		if err != nil {
 			continue
 		}
 		select {
