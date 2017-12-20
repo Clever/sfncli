@@ -1,2 +1,5 @@
 # bare minimum to support `ark start -l`
 {}
+autoscaling:
+  metric: active-percent
+  metric_target: 70
