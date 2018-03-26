@@ -142,6 +142,8 @@ func main() {
 			if getATOutput.TaskToken == nil {
 				continue
 			}
+
+			// Got a task! Now we can process it.
 			input := *getATOutput.Input
 			token := *getATOutput.TaskToken
 			log.InfoD("getactivitytask", logger.M{"input": input, "token": token})
@@ -170,12 +172,12 @@ func main() {
 			taskRunner := NewTaskRunner(*cmd, sfnapi, token, *workDirectory)
 			err = taskRunner.Process(taskCtx, flag.Args(), input)
 			if err != nil {
-				taskCtxCancel()
-				continue
+				log.ErrorD("task-runner-process", logger.M{"error": err.Error()})
 			}
 
-			// success!
+			// After executing one job, exit gracefully
 			taskCtxCancel()
+			break
 		}
 	}
 }
