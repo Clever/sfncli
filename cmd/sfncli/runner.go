@@ -80,8 +80,9 @@ func (t *TaskRunner) Process(ctx context.Context, args []string, input string) e
 	args = append(args, string(marshaledInput))
 
 	t.execCmd = exec.CommandContext(ctx, t.cmd, args...)
+	t.execCmd.Env = os.Environ()
 	if executionName != nil {
-		t.execCmd.Env = append(os.Environ(), "_EXECUTION_NAME="+*executionName)
+		t.execCmd.Env = append(t.execCmd.Env, "_EXECUTION_NAME="+*executionName)
 	}
 	tmpDir := ""
 	if t.workDirectory != "" {
