@@ -11,3 +11,4 @@ vendor/
 bin/
 release/
 gen-go/
+cmd/sfncli/sfncli

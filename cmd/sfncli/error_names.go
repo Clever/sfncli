@@ -58,6 +58,19 @@ func (t TaskFailureTaskInputNotJSON) ErrorCause() string {
 }
 func (t TaskFailureTaskInputNotJSON) Error() string { return t.ErrorCause() }
 
+// TaskFailureTaskInputMissingExecutionName is used when the input to the task is not a JSON object.
+type TaskFailureTaskInputMissingExecutionName struct {
+	input string
+}
+
+func (t TaskFailureTaskInputMissingExecutionName) ErrorName() string {
+	return "sfncli.TaskInputMissingExecutionName"
+}
+func (t TaskFailureTaskInputMissingExecutionName) ErrorCause() string {
+	return fmt.Sprintf("task input missing _EXECUTION_NAME attribute: '%s'", t.input)
+}
+func (t TaskFailureTaskInputMissingExecutionName) Error() string { return t.ErrorCause() }
+
 // TaskFailureCommandNotFound is used when the command passed to sfncli is not found.
 type TaskFailureCommandNotFound struct {
 	path string
