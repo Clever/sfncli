@@ -67,7 +67,7 @@ func (t *TaskRunner) Process(ctx context.Context, args []string, input string) e
 		return t.sendTaskFailure(TaskFailureTaskInputNotJSON{input: input})
 	}
 
-	// convention: pass _EXECUTION_NAME into the environment of the command
+	// _EXECUTION_NAME is a required payload parameter that we inject into the environment
 	executionName, ok := taskInput["_EXECUTION_NAME"].(string)
 	if !ok {
 		return t.sendTaskFailure(TaskFailureTaskInputMissingExecutionName{input: input})
