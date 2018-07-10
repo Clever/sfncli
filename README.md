@@ -36,7 +36,8 @@ sfncli -activityname sleep-100 -region us-west-2 --cloudwatchregion us-west-1 -w
 - Get a task. Take the JSON input for the task and
   - if it's a JSON object, use this as the last arg to the `cmd` passed to `sfncli`.
   - if it's anything else (e.g. JSON array), an error is thrown.
-  - if the task input an `_EXECUTION_NAME` key, it is added to the environment of the `cmd` as `_EXECUTION_NAME`.
+  - if `_EXECUTION_NAME` is missing from the payload, an error is thrown
+  - the `_EXECUTION_NAME` payload attribute value is added to the environment of the `cmd` as `_EXECUTION_NAME`.
   - if workdirectory is set, create a sub-directory and add it to the environment of the `cmd` as `WORK_DIR`.
 - Start [`SendTaskHeartbeat`](http://docs.aws.amazon.com/step-functions/latest/apireference/API_SendTaskHeartbeat.html) loop.
 - When the command exits:
@@ -51,6 +52,7 @@ sfncli -activityname sleep-100 -region us-west-2 --cloudwatchregion us-west-1 -w
 `sfncli` will report the following error names if it encounters errors it can identify:
 
 - `sfncli.TaskInputNotJSON`: input to the task was not JSON
+- `sfncli.TaskFailureTaskInputMissingExecutionName`: input is missing `_EXECUTION_NAME` attribute
 - `sfncli.CommandNotFound`: the command passed to `sfncli` was not found
 - `sfncli.CommandKilled`: the command process received SIGKILL
 - `sfncli.CommandExitedNonzero`: the command process exited with a nonzero exit code

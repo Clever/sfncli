@@ -19,7 +19,7 @@ import (
 
 const (
 	mockTaskToken  = "taskToken"
-	emptyTaskInput = "{}"
+	emptyTaskInput = `{"_EXECUTION_NAME":"fake-WFM-uuid"}`
 	testScriptsDir = "./test_scripts"
 )
 
@@ -84,14 +84,14 @@ func TestTaskOutputEmptyStringAsJSON(t *testing.T) {
 	defer testCtxCancel()
 	cmd := "stdout_empty_output.sh"
 	cmdArgs := []string{}
-	taskInput := "{}"
+	taskInput := `{"_EXECUTION_NAME":"fake-WFM-uuid"}`
 
 	controller := gomock.NewController(t)
 	defer controller.Finish()
 	mockSFN := mocksfn.NewMockSFNAPI(controller)
 	mockSFN.EXPECT().SendTaskSuccessWithContext(gomock.Any(), &sfn.SendTaskSuccessInput{
 		TaskToken: aws.String(mockTaskToken),
-		Output:    aws.String("{}"),
+		Output:    aws.String(`{"_EXECUTION_NAME":"fake-WFM-uuid"}`),
 	})
 	taskRunner := NewTaskRunner(path.Join(testScriptsDir, cmd), mockSFN, mockTaskToken, "")
 	err := taskRunner.Process(testCtx, cmdArgs, taskInput)
@@ -296,7 +296,7 @@ func TestTaskSuccessSignalForwarded(t *testing.T) {
 	controller := gomock.NewController(t)
 	mockSFN := mocksfn.NewMockSFNAPI(controller)
 	mockSFN.EXPECT().SendTaskSuccessWithContext(gomock.Any(), &sfn.SendTaskSuccessInput{
-		Output:    aws.String(`{"signal":"1"}`),
+		Output:    aws.String(`{"_EXECUTION_NAME":"fake-WFM-uuid","signal":"1"}`),
 		TaskToken: aws.String(mockTaskToken),
 	})
 	defer controller.Finish()
@@ -318,7 +318,7 @@ func TestTaskSuccessOutputIsLastLineOfStdout(t *testing.T) {
 	controller := gomock.NewController(t)
 	mockSFN := mocksfn.NewMockSFNAPI(controller)
 	mockSFN.EXPECT().SendTaskSuccessWithContext(gomock.Any(), &sfn.SendTaskSuccessInput{
-		Output:    aws.String(`{"task":"output"}`),
+		Output:    aws.String(`{"_EXECUTION_NAME":"fake-WFM-uuid","task":"output"}`),
 		TaskToken: aws.String(mockTaskToken),
 	})
 	defer controller.Finish()
@@ -332,7 +332,7 @@ func TestTaskWorkDirectorySetup(t *testing.T) {
 	defer testCtxCancel()
 	cmd := "echo_workdir.sh"
 	cmdArgs := []string{}
-	taskInput := "{}"
+	taskInput := `{"_EXECUTION_NAME":"fake-WFM-uuid"}`
 
 	controller := gomock.NewController(t)
 	defer controller.Finish()
@@ -352,14 +352,14 @@ func TestTaskWorkDirectoryUnsetByDefault(t *testing.T) {
 	defer testCtxCancel()
 	cmd := "echo_workdir.sh"
 	cmdArgs := []string{}
-	taskInput := "{}" // output a env var using the key
+	taskInput := `{"_EXECUTION_NAME":"fake-WFM-uuid"}` // output a env var using the key
 
 	controller := gomock.NewController(t)
 	defer controller.Finish()
 	mockSFN := mocksfn.NewMockSFNAPI(controller)
 	mockSFN.EXPECT().SendTaskSuccessWithContext(gomock.Any(), &sfn.SendTaskSuccessInput{
 		TaskToken: aws.String(mockTaskToken),
-		Output:    aws.String("{\"work_dir\":\"\"}"), // returns the result of WORK_DIR
+		Output:    aws.String(`{"_EXECUTION_NAME":"fake-WFM-uuid","work_dir":""}`), // returns the result of WORK_DIR
 	})
 	taskRunner := NewTaskRunner(path.Join(testScriptsDir, cmd), mockSFN, mockTaskToken, "")
 	err := taskRunner.Process(testCtx, cmdArgs, taskInput)
@@ -372,7 +372,7 @@ func TestTaskWorkDirectoryCleaned(t *testing.T) {
 	defer testCtxCancel()
 	cmd := "create_file.sh"
 	cmdArgs := []string{}
-	taskInput := "{}"
+	taskInput := `{"_EXECUTION_NAME":"fake-WFM-uuid"}`
 
 	controller := gomock.NewController(t)
 	defer controller.Finish()

@@ -22,8 +22,10 @@ import (
 )
 
 // stay within documented limits of SFN APIs
-const maxTaskOutputLength = 32768
-const maxTaskFailureCauseLength = 32768
+const (
+	maxTaskOutputLength       = 32768
+	maxTaskFailureCauseLength = 32768
+)
 
 // TaskRunner manages resources for executing a task
 type TaskRunner struct {
@@ -65,12 +67,12 @@ func (t *TaskRunner) Process(ctx context.Context, args []string, input string) e
 		return t.sendTaskFailure(TaskFailureTaskInputNotJSON{input: input})
 	}
 
-	// convention: if the input contains _EXECUTION_NAME, pass it to the environment of the command
-	var executionName *string
-	if e, ok := taskInput["_EXECUTION_NAME"].(string); ok {
-		executionName = &e
-		t.logger.AddContext("execution_name", *executionName)
+	// _EXECUTION_NAME is a required payload parameter that we inject into the environment
+	executionName, ok := taskInput["_EXECUTION_NAME"].(string)
+	if !ok {
+		return t.sendTaskFailure(TaskFailureTaskInputMissingExecutionName{input: input})
 	}
+	t.logger.AddContext("execution_name", executionName)
 
 	marshaledInput, err := json.Marshal(taskInput)
 	if err != nil {
@@ -80,9 +82,8 @@ func (t *TaskRunner) Process(ctx context.Context, args []string, input string) e
 	args = append(args, string(marshaledInput))
 
 	t.execCmd = exec.CommandContext(ctx, t.cmd, args...)
-	if executionName != nil {
-		t.execCmd.Env = append(os.Environ(), "_EXECUTION_NAME="+*executionName)
-	}
+	t.execCmd.Env = append(os.Environ(), "_EXECUTION_NAME="+executionName)
+
 	tmpDir := ""
 	if t.workDirectory != "" {
 		// make a new tmpDir for every run
@@ -146,9 +147,9 @@ func (t *TaskRunner) Process(ctx context.Context, args []string, input string) e
 	} else if err := json.Unmarshal([]byte(taskOutput), &taskOutputMap); err != nil {
 		return t.sendTaskFailure(TaskFailureTaskOutputNotJSON{output: taskOutput})
 	}
-	if executionName != nil {
-		taskOutputMap["_EXECUTION_NAME"] = *executionName
-	}
+	// Add _EXECUTION_NAME back into the payload in case the executing worker omits the value
+	// in the output.
+	taskOutputMap["_EXECUTION_NAME"] = executionName
 
 	finalTaskOutput, err := json.Marshal(taskOutputMap)
 	if err != nil {
