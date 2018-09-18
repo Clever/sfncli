@@ -59,10 +59,13 @@ func main() {
 	} else {
 		*workerName = newWorkerName
 	}
+
 	if *cmd == "" {
 		fmt.Println("cmd is required")
 		os.Exit(1)
 	}
+	*cmd = os.ExpandEnv(*cmd) // Allow environment variable substition in the cmd flag.
+
 	if *region == "" {
 		*region = os.Getenv("AWS_REGION")
 		if *region == "" {
