@@ -47,6 +47,7 @@ func main() {
 		os.Exit(1)
 	}
 	*activityName = os.ExpandEnv(*activityName)
+
 	if *workerName == "" {
 		fmt.Println("workername is required")
 		os.Exit(1)
@@ -83,7 +84,7 @@ func main() {
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt, os.Signal(syscall.SIGTERM))
 	go func() {
-		for _ = range c {
+		for range c {
 			// sig is a ^C, handle it
 			mainCtxCancel()
 		}
