@@ -107,7 +107,7 @@ func (c *CloudWatchReporter) report() {
 }
 
 func (c *CloudWatchReporter) putMetricData(activePercent float64) {
-	log.InfoD("put-metric-data", logger.M{"activity-arn": c.activityArn, "metric-name": metricNameActivityActivePercent, "value": activePercent})
+	log.TraceD("put-metric-data", logger.M{"activity-arn": c.activityArn, "metric-name": metricNameActivityActivePercent, "value": activePercent})
 	if _, err := c.cwapi.PutMetricData(&cloudwatch.PutMetricDataInput{
 		MetricData: []*cloudwatch.MetricDatum{{
 			Dimensions: []*cloudwatch.Dimension{{
