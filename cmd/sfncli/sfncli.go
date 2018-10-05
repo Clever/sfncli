@@ -166,7 +166,7 @@ func main() {
 					taskCtxCancel()
 					return
 				}
-				log.InfoD("heartbeat-end", logger.M{"token": token})
+				log.TraceD("heartbeat-end", logger.M{"token": token})
 			}()
 
 			// Run the command. Treat unprocessed args (flag.Args()) as additional args to
@@ -240,7 +240,7 @@ func sendTaskHeartbeat(ctx context.Context, sfnapi sfniface.SFNAPI, token string
 		}
 		log.ErrorD("heartbeat-error-unknown", logger.M{"error": err.Error()}) // should investigate unknown/unclassified errors
 	}
-	log.Info("heartbeat-sent")
+	log.Trace("heartbeat-sent")
 	return nil
 }
 
