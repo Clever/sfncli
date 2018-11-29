@@ -137,7 +137,7 @@ func main() {
 			cw.SetActiveState(true)
 			if err != nil {
 				if err == context.Canceled || awsErr(err, request.CanceledErrorCode) {
-					log.Info("getactivitytask-stop")
+					log.Info("getactivitytask-canceled")
 					continue
 				}
 				log.ErrorD("getactivitytask-error", logger.M{"error": err.Error()})
