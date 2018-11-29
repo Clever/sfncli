@@ -174,6 +174,7 @@ func main() {
 			taskRunner := NewTaskRunner(*cmd, sfnapi, token, *workDirectory)
 			err = taskRunner.Process(taskCtx, flag.Args(), input)
 			if err != nil {
+				log.ErrorD("task-process-error", logger.M{"error": err.Error()})
 				taskCtxCancel()
 				continue
 			}
