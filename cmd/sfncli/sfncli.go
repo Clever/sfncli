@@ -137,15 +137,16 @@ func main() {
 				ActivityArn: createOutput.ActivityArn,
 				WorkerName:  workerName,
 			})
+			if err == context.Canceled || awsErr(err, request.CanceledErrorCode) {
+				log.Warn("getactivitytask-cancel")
+				continue
+			}
 			if err != nil {
-				if err == context.Canceled || awsErr(err, request.CanceledErrorCode) {
-					log.Info("getactivitytask-canceled")
-					continue
-				}
 				log.ErrorD("getactivitytask-error", logger.M{"error": err.Error()})
 				continue
 			}
-			if getATOutput.TaskToken == nil {
+			if getATOutput.TaskToken == nil { // No jobs to do
+				log.Debug("getactivitytask-skip")
 				continue
 			}
 
