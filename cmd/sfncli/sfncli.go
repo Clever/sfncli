@@ -125,16 +125,15 @@ func main() {
 		case <-mainCtx.Done():
 			log.Info("getactivitytask-stop")
 		default:
+			cw.SetActiveState(false)
 			if err := limiter.Wait(mainCtx); err != nil {
 				continue
 			}
-			cw.SetActiveState(false)
 			log.TraceD("getactivitytask-start", logger.M{"activity-arn": *createOutput.ActivityArn, "worker-name": *workerName})
 			getATOutput, err := sfnapi.GetActivityTaskWithContext(mainCtx, &sfn.GetActivityTaskInput{
 				ActivityArn: createOutput.ActivityArn,
 				WorkerName:  workerName,
 			})
-			cw.SetActiveState(true)
 			if err != nil {
 				if err == context.Canceled || awsErr(err, request.CanceledErrorCode) {
 					log.Info("getactivitytask-canceled")
@@ -146,6 +145,8 @@ func main() {
 			if getATOutput.TaskToken == nil {
 				continue
 			}
+
+			cw.SetActiveState(true)
 			input := *getATOutput.Input
 			token := *getATOutput.TaskToken
 			log.InfoD("getactivitytask", logger.M{"input": input, "token": token})
