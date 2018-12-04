@@ -121,31 +121,36 @@ func main() {
 	// getactivitytask claims to initiate a polling loop, but it seems to return every few minutes with
 	// a nil error and empty output. So wrap it in a polling loop of our own
 	for mainCtx.Err() == nil {
-		if err := limiter.Wait(mainCtx); err != nil {
-			continue
-		}
 		select {
 		case <-mainCtx.Done():
 			log.Info("getactivitytask-stop")
 		default:
 			cw.SetActiveState(false)
-			log.TraceD("getactivitytask-start", logger.M{"activity-arn": *createOutput.ActivityArn, "worker-name": *workerName})
+			if err := limiter.Wait(mainCtx); err != nil {
+				continue
+			}
+
+			log.TraceD("getactivitytask-start", logger.M{
+				"activity-arn": *createOutput.ActivityArn, "worker-name": *workerName,
+			})
 			getATOutput, err := sfnapi.GetActivityTaskWithContext(mainCtx, &sfn.GetActivityTaskInput{
 				ActivityArn: createOutput.ActivityArn,
 				WorkerName:  workerName,
 			})
-			cw.SetActiveState(true)
+			if err == context.Canceled || awsErr(err, request.CanceledErrorCode) {
+				log.Warn("getactivitytask-cancel")
+				continue
+			}
 			if err != nil {
-				if err == context.Canceled || awsErr(err, request.CanceledErrorCode) {
-					log.Info("getactivitytask-stop")
-					continue
-				}
 				log.ErrorD("getactivitytask-error", logger.M{"error": err.Error()})
 				continue
 			}
-			if getATOutput.TaskToken == nil {
+			if getATOutput.TaskToken == nil { // No jobs to do
+				log.Debug("getactivitytask-skip")
 				continue
 			}
+
+			cw.SetActiveState(true)
 			input := *getATOutput.Input
 			token := *getATOutput.TaskToken
 			log.InfoD("getactivitytask", logger.M{"input": input, "token": token})
@@ -174,6 +179,7 @@ func main() {
 			taskRunner := NewTaskRunner(*cmd, sfnapi, token, *workDirectory)
 			err = taskRunner.Process(taskCtx, flag.Args(), input)
 			if err != nil {
+				log.ErrorD("task-process-error", logger.M{"error": err.Error()})
 				taskCtxCancel()
 				continue
 			}

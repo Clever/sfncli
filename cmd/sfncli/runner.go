@@ -89,7 +89,7 @@ func (t *TaskRunner) Process(ctx context.Context, args []string, input string) e
 		// make a new tmpDir for every run
 		tmpDir, err = ioutil.TempDir(t.workDirectory, "")
 		if err != nil {
-			return err
+			return t.sendTaskFailure(TaskFailureUnknown{fmt.Errorf("failed to create tmp dir: %s", err)})
 		}
 
 		t.execCmd.Env = append(t.execCmd.Env, fmt.Sprintf("WORK_DIR=%s", tmpDir))
