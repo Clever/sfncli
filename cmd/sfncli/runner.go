@@ -138,7 +138,7 @@ func (t *TaskRunner) Process(ctx context.Context, args []string, input string) e
 		}
 		return t.sendTaskFailure(TaskFailureUnknown{err})
 	}
-	t.logger.InfoD("exec-command-end", logger.M{"duration_ns": time.Now().Sub(start)})
+	t.logger.InfoD("exec-command-end", logger.M{"duration_ns": time.Since(start)})
 
 	// AWS / states language requires JSON output
 	taskOutput := taskOutputFromStdout(stdoutbuf.String())
