@@ -126,9 +126,12 @@ func main() {
 			log.Info("getactivitytask-stop")
 		default:
 			cw.SetActiveState(false)
+			cw.SetPaused(true)
 			if err := limiter.Wait(mainCtx); err != nil {
+				cw.SetPaused(false)
 				continue
 			}
+			cw.SetPaused(false)
 
 			log.TraceD("getactivitytask-start", logger.M{
 				"activity-arn": *createOutput.ActivityArn, "worker-name": *workerName,
