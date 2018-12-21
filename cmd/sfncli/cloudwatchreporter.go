@@ -69,8 +69,8 @@ func (c *CloudWatchReporter) ActiveUntilContextDone(ctx context.Context) {
 	c.SetActiveState(false)
 }
 
-// SetPaused records amount of time activity is paused from working on a task
-func (c *CloudWatchReporter) SetPaused(paused bool) {
+// SetPausedState records amount of time activity is paused from working on a task
+func (c *CloudWatchReporter) SetPausedState(paused bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if paused == c.pausedState {
@@ -117,7 +117,18 @@ func (c *CloudWatchReporter) report() {
 	if c.activeState {
 		c.activeTime += now.Sub(maxTime(c.lastReportingTime, c.lastActiveStateChange))
 	}
-	activePercent := 100.0 * float64(c.activeTime) / float64(now.Sub(c.lastReportingTime)-c.pausedTime)
+	// record incremental paused time
+	if c.pausedState {
+		c.pausedTime += now.Sub(maxTime(c.lastReportingTime, c.lastPausedStateChange))
+	}
+	var activePercent float64
+	totalTime := now.Sub(c.lastReportingTime)
+	// don't divide by 0
+	if c.pausedTime == totalTime {
+		activePercent = 100.0
+	} else {
+		activePercent = 100.0 * float64(c.activeTime) / float64(totalTime-c.pausedTime)
+	}
 	c.lastReportingTime = now
 	c.activeTime = time.Duration(0)
 	c.pausedTime = time.Duration(0)
