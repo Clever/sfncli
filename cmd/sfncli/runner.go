@@ -189,8 +189,8 @@ func (t *TaskRunner) handleSignals(ctx context.Context) {
 				t.receivedSigterm = true
 				go func(pidtokill int) {
 					time.Sleep(t.sigtermGracePeriod)
-					t.ctxCancel()
 					signalProcess(pidtokill, os.Signal(syscall.SIGKILL))
+					t.ctxCancel()
 				}(pid)
 			}
 			signalProcess(pid, sigReceived)
