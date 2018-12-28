@@ -37,10 +37,11 @@ type TaskRunner struct {
 	receivedSigterm    bool
 	sigtermGracePeriod time.Duration
 	workDirectory      string
+	ctxCancel          context.CancelFunc
 }
 
 // NewTaskRunner instantiates a new TaskRunner
-func NewTaskRunner(cmd string, sfnapi sfniface.SFNAPI, taskToken string, workDirectory string) TaskRunner {
+func NewTaskRunner(cmd string, sfnapi sfniface.SFNAPI, taskToken string, workDirectory string, cancelFunc context.CancelFunc) TaskRunner {
 	return TaskRunner{
 		sfnapi:        sfnapi,
 		taskToken:     taskToken,
@@ -50,6 +51,7 @@ func NewTaskRunner(cmd string, sfnapi sfniface.SFNAPI, taskToken string, workDir
 		// set the default grace period to something slightly lower than the default
 		// docker stop grace period in ECS (30s)
 		sigtermGracePeriod: 25 * time.Second,
+		ctxCancel:          cancelFunc,
 	}
 }
 
@@ -81,8 +83,7 @@ func (t *TaskRunner) Process(ctx context.Context, args []string, input string) e
 
 	args = append(args, string(marshaledInput))
 
-	// We're not passing ctx in here because we do our own SIGTERM handling
-	t.execCmd = exec.Command(t.cmd, args...)
+	t.execCmd = exec.CommandContext(ctx, t.cmd, args...)
 	t.execCmd.Env = append(os.Environ(), "_EXECUTION_NAME="+executionName)
 
 	tmpDir := ""
@@ -188,6 +189,7 @@ func (t *TaskRunner) handleSignals(ctx context.Context) {
 				t.receivedSigterm = true
 				go func(pidtokill int) {
 					time.Sleep(t.sigtermGracePeriod)
+					t.ctxCancel()
 					signalProcess(pidtokill, os.Signal(syscall.SIGKILL))
 				}(pid)
 			}
