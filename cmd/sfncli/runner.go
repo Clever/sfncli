@@ -81,7 +81,8 @@ func (t *TaskRunner) Process(ctx context.Context, args []string, input string) e
 
 	args = append(args, string(marshaledInput))
 
-	t.execCmd = exec.CommandContext(ctx, t.cmd, args...)
+	// We're not passing ctx in here because we do our own SIGTERM handling
+	t.execCmd = exec.Command(t.cmd, args...)
 	t.execCmd.Env = append(os.Environ(), "_EXECUTION_NAME="+executionName)
 
 	tmpDir := ""
