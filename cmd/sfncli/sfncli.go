@@ -170,6 +170,7 @@ func main() {
 					// e.g., if the task timed out
 					// shut down the command in these cases
 					taskCtxCancel()
+					mainCtxCancel()
 					return
 				}
 				log.TraceD("heartbeat-end", logger.M{"token": token})
