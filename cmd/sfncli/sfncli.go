@@ -126,9 +126,16 @@ func main() {
 			log.Info("getactivitytask-stop")
 		default:
 			cw.SetActiveState(false)
+			// setting paused here so the time spent waiting for the limiter is not counted as time
+			// the task is inactive in the activePercent calculation
+			cw.SetPausedState(true)
 			if err := limiter.Wait(mainCtx); err != nil {
+				// must unpause here because no longer waiting for limiter
+				cw.SetPausedState(false)
 				continue
 			}
+			// must unpaused here because no longer waiting for limiter
+			cw.SetPausedState(false)
 
 			log.TraceD("getactivitytask-start", logger.M{
 				"activity-arn": *createOutput.ActivityArn, "worker-name": *workerName,

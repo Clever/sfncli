@@ -28,6 +28,9 @@ type CloudWatchReporter struct {
 	activeTime            time.Duration
 	lastReportingTime     time.Time
 	lastActiveStateChange time.Time
+	pausedState           bool
+	pausedTime            time.Duration
+	lastPausedStateChange time.Time
 }
 
 func NewCloudWatchReporter(cwapi cloudwatchiface.CloudWatchAPI, activityArn string) *CloudWatchReporter {
@@ -66,6 +69,21 @@ func (c *CloudWatchReporter) ActiveUntilContextDone(ctx context.Context) {
 	c.SetActiveState(false)
 }
 
+// SetPausedState records amount of time activity is paused from working on a task
+func (c *CloudWatchReporter) SetPausedState(paused bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if paused == c.pausedState {
+		return
+	}
+	now := time.Now()
+	if c.pausedState {
+		c.pausedTime += now.Sub(maxTime(c.lastReportingTime, c.lastPausedStateChange))
+	}
+	c.pausedState = paused
+	c.lastPausedStateChange = now
+}
+
 // SetActiveState sets whether the activity is currently working on a task or not.
 func (c *CloudWatchReporter) SetActiveState(active bool) {
 	c.mu.Lock()
@@ -99,9 +117,21 @@ func (c *CloudWatchReporter) report() {
 	if c.activeState {
 		c.activeTime += now.Sub(maxTime(c.lastReportingTime, c.lastActiveStateChange))
 	}
-	activePercent := 100.0 * float64(c.activeTime) / float64(now.Sub(c.lastReportingTime))
+	// record incremental paused time
+	if c.pausedState {
+		c.pausedTime += now.Sub(maxTime(c.lastReportingTime, c.lastPausedStateChange))
+	}
+	var activePercent float64
+	totalTime := now.Sub(c.lastReportingTime)
+	// don't divide by 0
+	if c.pausedTime == totalTime {
+		activePercent = 100.0
+	} else {
+		activePercent = 100.0 * float64(c.activeTime) / float64(totalTime-c.pausedTime)
+	}
 	c.lastReportingTime = now
 	c.activeTime = time.Duration(0)
+	c.pausedTime = time.Duration(0)
 	// fire and forget the metric
 	go c.putMetricData(activePercent)
 }
