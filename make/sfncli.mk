@@ -29,13 +29,19 @@ bin/sfncli: ensure-sfncli-version-set ensure-curl-installed
 	@echo "Checking for sfncli updates..."
 	@# AUTH_HEADER not added to curl command below because it doesn't play well with redirects
 	@if [[ "$(SFNCLI_VERSION)" == "$(SFNCLI_INSTALLED)" ]]; then \
-		echo "Using latest sfncli version $(SFNCLI_VERSION)"; \
+		{ [[ -z "$(SFNCLI_INSTALLED)" ]] && \
+			{ echo "❌  Error: Failed to download sfncli.  Try setting GITHUB_API_TOKEN"; exit 1; } || \
+			{ echo "Using latest sfncli version $(SFNCLI_VERSION)"; } \
+		} \
 	else \
 		echo "Updating sfncli..."; \
 		curl --retry 5 --fail --max-time 30 -o bin/sfncli -sL https://github.com/Clever/sfncli/releases/download/$(SFNCLI_VERSION)/sfncli-$(SFNCLI_VERSION)-$(SYSTEM)-amd64 && \
 		chmod +x bin/sfncli && \
-		echo "Successfully updated sfncli to $(SFNCLI_LATEST)" || \
-		{ echo "Failed to update sfncli"; exit 1; } \
+		echo "Successfully updated sfncli to $(SFNCLI_VERSION)" || \
+		{ [[ -z "$(SFNCLI_INSTALLED)" ]] && \
+			{ echo "❌  Error: Failed to update sfncli"; exit 1; } || \
+			{ echo "⚠️  Warning: Failed to update sfncli using pre-existing version"; } \
+		} \
 	;fi
 
 sfncli-update-makefile: ensure-curl-installed
