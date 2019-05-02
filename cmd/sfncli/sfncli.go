@@ -34,6 +34,7 @@ func main() {
 	cloudWatchRegion := flag.String("cloudwatchregion", "", "The AWS region to report metrics. Defaults to the value of the region flag.")
 	workDirectory := flag.String("workdirectory", "", "Create the specified directory pass the path using the environment variable WORK_DIR to the cmd processing a task. Default is to not create the path.")
 	printVersion := flag.Bool("version", false, "Print the version and exit.")
+	endpoint := flag.String("endpoint", "", "Endpoint to use for stepfunctions api. eg -endpoint http://localhost:4585")
 
 	flag.Parse()
 
@@ -94,7 +95,8 @@ func main() {
 	}()
 
 	// register the activity with AWS (it might already exist, which is ok)
-	sfnapi := sfn.New(session.New(), aws.NewConfig().WithRegion(*region))
+	config := aws.NewConfig().WithRegion(*region).WithEndpoint(*endpoint)
+	sfnapi := sfn.New(session.New(), config)
 	createOutput, err := sfnapi.CreateActivityWithContext(mainCtx, &sfn.CreateActivityInput{
 		Name: activityName,
 	})
@@ -106,6 +108,7 @@ func main() {
 		"activity":       *createOutput.ActivityArn,
 		"worker-name":    *workerName,
 		"work-directory": *workDirectory,
+		"endpoint":       *endpoint,
 	})
 
 	// set up cloudwatch metric reporting
