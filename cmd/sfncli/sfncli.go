@@ -97,6 +97,7 @@ func main() {
 	sfnapi := sfn.New(session.New(), aws.NewConfig().WithRegion(*region))
 	createOutput, err := sfnapi.CreateActivityWithContext(mainCtx, &sfn.CreateActivityInput{
 		Name: activityName,
+		Tags: tagsFromEnv(),
 	})
 	if err != nil {
 		fmt.Printf("error creating activity: %s\n", err)
@@ -196,6 +197,21 @@ func main() {
 			taskCtxCancel()
 		}
 	}
+}
+
+// tagsFromEnv computes tags for the activity from environment variables.
+func tagsFromEnv() []*sfn.Tag {
+	tags := []*sfn.Tag{}
+	if env := os.Getenv("_DEPLOY_ENV"); env != "" {
+		tags = append(tags, &sfn.Tag{Key: aws.String("environment"), Value: aws.String(env)})
+	}
+	if app := os.Getenv("_APP_NAME"); app != "" {
+		tags = append(tags, &sfn.Tag{Key: aws.String("application"), Value: aws.String(app)})
+	}
+	if pod := os.Getenv("_POD_ID"); pod != "" {
+		tags = append(tags, &sfn.Tag{Key: aws.String("pod"), Value: aws.String(pod)})
+	}
+	return tags
 }
 
 // validateWorkDirectory ensures the directory exists and is writable
