@@ -94,15 +94,27 @@ func main() {
 	}()
 
 	// register the activity with AWS (it might already exist, which is ok)
+	activityTags := tagsFromEnv()
 	sfnapi := sfn.New(session.New(), aws.NewConfig().WithRegion(*region))
 	createOutput, err := sfnapi.CreateActivityWithContext(mainCtx, &sfn.CreateActivityInput{
 		Name: activityName,
-		Tags: tagsFromEnv(),
+		Tags: activityTags,
 	})
 	if err != nil {
 		fmt.Printf("error creating activity: %s\n", err)
 		os.Exit(1)
 	}
+
+	// if the activity already exists, tags won't be applied, so explicitly
+	// set tags here
+	if _, err := sfnapi.TagResourceWithContext(mainCtx, &sfn.TagResourceInput{
+		ResourceArn: createOutput.ActivityArn,
+		Tags:        activityTags,
+	}); err != nil {
+		fmt.Printf("error tagging activity: %s\n", err)
+		os.Exit(1)
+	}
+
 	log.InfoD("startup", logger.M{
 		"activity":       *createOutput.ActivityArn,
 		"worker-name":    *workerName,
