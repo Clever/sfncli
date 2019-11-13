@@ -176,6 +176,12 @@ func (t *TaskRunner) handleSignals(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
+			if t.execCmd.Process == nil {
+				return
+			}
+			// send SIGINT to give the command an opportunity to clean up when cancellation occurs
+			pid := t.execCmd.Process.Pid
+			signalProcess(pid, os.Interrupt)
 			return
 		case sigReceived := <-sigChan:
 			if t.execCmd.Process == nil {
