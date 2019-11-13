@@ -181,14 +181,16 @@ func main() {
 			var taskCtxCancel context.CancelFunc
 			// context.Background() to disconnect this from the mainCtx cancellation
 			taskCtx, taskCtxCancel = context.WithCancel(context.Background())
-
+			taskRunner := NewTaskRunner(*cmd, sfnapi, token, *workDirectory, taskCtxCancel)
 			// Begin sending heartbeats
 			go func() {
 				if err := taskHeartbeatLoop(taskCtx, sfnapi, token); err != nil {
 					log.ErrorD("heartbeat-error", logger.M{"error": err.Error()})
 					// taskHeartBeatLoop only returns errors when they should be treated as critical
 					// e.g., if the task timed out
-					// shut down the command in these cases
+					// shut down the command in these cases, giving some time for graceful clean up
+					taskRunner.Signal(os.Interrupt)
+					time.Sleep(10 * time.Second)
 					taskCtxCancel()
 					return
 				}
@@ -197,7 +199,6 @@ func main() {
 
 			// Run the command. Treat unprocessed args (flag.Args()) as additional args to
 			// send to the command on every invocation of the command
-			taskRunner := NewTaskRunner(*cmd, sfnapi, token, *workDirectory, taskCtxCancel)
 			err = taskRunner.Process(taskCtx, flag.Args(), input)
 			if err != nil {
 				log.ErrorD("task-process-error", logger.M{"error": err.Error()})
