@@ -41,7 +41,7 @@ type TaskRunner struct {
 }
 
 // NewTaskRunner instantiates a new TaskRunner
-func NewTaskRunner(cmd string, sfnapi sfniface.SFNAPI, taskToken string, workDirectory string, cancelFunc context.CancelFunc) TaskRunner {
+func NewTaskRunner(cmd string, sfnapi sfniface.SFNAPI, taskToken string, workDirectory string) TaskRunner {
 	return TaskRunner{
 		sfnapi:        sfnapi,
 		taskToken:     taskToken,
@@ -51,7 +51,6 @@ func NewTaskRunner(cmd string, sfnapi sfniface.SFNAPI, taskToken string, workDir
 		// set the default grace period to something slightly lower than the default
 		// docker stop grace period in ECS (30s)
 		sigtermGracePeriod: 25 * time.Second,
-		ctxCancel:          cancelFunc,
 	}
 }
 
@@ -83,7 +82,10 @@ func (t *TaskRunner) Process(ctx context.Context, args []string, input string) e
 
 	args = append(args, string(marshaledInput))
 
-	t.execCmd = exec.CommandContext(ctx, t.cmd, args...)
+	// don't use exec.CommandContext, since we want to do graceful
+	// sigterm + (grace period) + sigkill on the context finishing
+	// CommandContext does sigkill immediately.
+	t.execCmd = exec.Command(t.cmd, args...)
 	t.execCmd.Env = append(os.Environ(), "_EXECUTION_NAME="+executionName)
 
 	tmpDir := ""
@@ -176,6 +178,14 @@ func (t *TaskRunner) handleSignals(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
+			// if the context has ended, but the command is still running,
+			// initiate graceful shutdown with a much shorter grace period,
+			// since most likely this is a case of SFN timing out the
+			// activity. This means there is likely another activity
+			// out there beginning work on the same input.
+			if t.execCmd.Process != nil && t.execCmd.ProcessState == nil {
+				sigTermAndThenKill(t.execCmd.Process.Pid, 5*time.Second)
+			}
 			return
 		case sigReceived := <-sigChan:
 			if t.execCmd.Process == nil {
@@ -187,11 +197,8 @@ func (t *TaskRunner) handleSignals(ctx context.Context) {
 			// - after a grace period send SIGKILL to the command if it's still running
 			if sigReceived == syscall.SIGTERM {
 				t.receivedSigterm = true
-				go func(pidtokill int) {
-					time.Sleep(t.sigtermGracePeriod)
-					signalProcess(pidtokill, os.Signal(syscall.SIGKILL))
-					t.ctxCancel()
-				}(pid)
+				sigTermAndThenKill(pid, t.sigtermGracePeriod)
+				return
 			}
 			signalProcess(pid, sigReceived)
 		}
@@ -204,6 +211,15 @@ func (t *TaskRunner) handleSignals(ctx context.Context) {
 func signalProcess(pid int, signal os.Signal) {
 	proc := os.Process{Pid: pid}
 	proc.Signal(signal)
+}
+
+// sigTermAndThenKill is a docker-stop like shutdown process:
+// - send sigterm
+// - after a grace period send SIGKILL if the command is still running
+func sigTermAndThenKill(pid int, gracePeriod time.Duration) {
+	signalProcess(pid, os.Signal(syscall.SIGTERM))
+	time.Sleep(gracePeriod)
+	signalProcess(pid, os.Signal(syscall.SIGKILL))
 }
 
 func parseCustomErrorFromStdout(stdout string) (TaskFailureCustom, error) {

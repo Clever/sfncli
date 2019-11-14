@@ -177,10 +177,7 @@ func main() {
 
 			// Create a context for this task. We'll cancel this context on errors.
 			// Anything spawned on behalf of the task should use this context.
-			var taskCtx context.Context
-			var taskCtxCancel context.CancelFunc
-			// context.Background() to disconnect this from the mainCtx cancellation
-			taskCtx, taskCtxCancel = context.WithCancel(context.Background())
+			taskCtx, taskCtxCancel := context.WithCancel(mainCtx)
 
 			// Begin sending heartbeats
 			go func() {
@@ -197,7 +194,7 @@ func main() {
 
 			// Run the command. Treat unprocessed args (flag.Args()) as additional args to
 			// send to the command on every invocation of the command
-			taskRunner := NewTaskRunner(*cmd, sfnapi, token, *workDirectory, taskCtxCancel)
+			taskRunner := NewTaskRunner(*cmd, sfnapi, token, *workDirectory)
 			err = taskRunner.Process(taskCtx, flag.Args(), input)
 			if err != nil {
 				log.ErrorD("task-process-error", logger.M{"error": err.Error()})
