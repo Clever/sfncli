@@ -220,6 +220,16 @@ func tagsFromEnv() []*sfn.Tag {
 	if pod := os.Getenv("_POD_ID"); pod != "" {
 		tags = append(tags, &sfn.Tag{Key: aws.String("pod"), Value: aws.String(pod)})
 	}
+	if shortname := os.Getenv("_POD_SHORTNAME"); shortname != "" {
+		tags = append(tags, &sfn.Tag{Key: aws.String("pod-shortname"), Value: aws.String(shortname)})
+	}
+	if region := os.Getenv("_POD_REGION"); region != "" {
+		tags = append(tags, &sfn.Tag{Key: aws.String("pod-region"), Value: aws.String(region)})
+	}
+	if account := os.Getenv("_POD_ACCOUNT"); account != "" {
+		tags = append(tags, &sfn.Tag{Key: aws.String("pod-account"), Value: aws.String(account)})
+	}
+
 	return tags
 }
 
