@@ -34,6 +34,7 @@ func expandECSTaskARN(s string) (string, error) {
 
 	// wait for the file to exist
 	ticker := time.NewTicker(1 * time.Second)
+	defer ticker.Stop()
 	for {
 		<-ticker.C
 		if _, err := os.Stat(filePath); err == nil {
@@ -44,13 +45,7 @@ func expandECSTaskARN(s string) (string, error) {
 	// wait until the file data has the TaskARN
 	var metadata ecsContainerMetadata
 	for {
-		<-ticker.C
-		f, err := os.Open(filePath)
-		if err != nil {
-			return "", err
-		}
-		defer f.Close()
-		b, err := ioutil.ReadAll(f)
+		b, err := ioutil.ReadFile(filePath)
 		if err != nil {
 			return "", err
 		}
@@ -60,6 +55,7 @@ func expandECSTaskARN(s string) (string, error) {
 		if metadata.TaskARN != "" || metadata.MetadataFileStatus == "READY" {
 			break
 		}
+		<-ticker.C
 	}
 
 	return strings.Replace(s, magicECSTaskARN, metadata.TaskARN, 1), nil
