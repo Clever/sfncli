@@ -1,13 +1,13 @@
 # This is the default sfncli Makefile.
 # Please do not alter this file directly.
-SFNCLI_MK_VERSION := 0.1.2
+SFNCLI_MK_VERSION := 0.1.3
 SHELL := /bin/bash
 SYSTEM := $(shell uname -a | cut -d" " -f1 | tr '[:upper:]' '[:lower:]')
 SFNCLI_INSTALLED := $(shell [[ -e "bin/sfncli" ]] && bin/sfncli --version)
 # AUTH_HEADER is used to help avoid github ratelimiting
 AUTH_HEADER = $(shell [[ ! -z "${GITHUB_API_TOKEN}" ]] && echo "Authorization: token $(GITHUB_API_TOKEN)")
 SFNCLI_LATEST = $(shell \
-	curl -f -s --header "$(AUTH_HEADER)" \
+	curl --retry 5 -f -s --header "$(AUTH_HEADER)" \
 		https://api.github.com/repos/Clever/sfncli/releases/latest | \
 	grep tag_name | \
 	cut -d\" -f4)
