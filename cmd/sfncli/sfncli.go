@@ -53,7 +53,7 @@ func main() {
 		os.Exit(1)
 	}
 	*workerName = os.ExpandEnv(*workerName)
-	if newWorkerName, err := expandECSTaskARN(*workerName); err != nil {
+	if newWorkerName, err := expandECSMagicStrings(*workerName); err != nil {
 		fmt.Printf("error expanding %s: %s", magicECSTaskARN, err)
 		os.Exit(1)
 	} else {
