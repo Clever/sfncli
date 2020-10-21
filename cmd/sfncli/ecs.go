@@ -68,9 +68,9 @@ func lookupARN() (string, error) {
 }
 
 func arnFromMetadataURI() (string, error) {
-	uri, ok := os.LookupEnv(ecsContainerMetadaUriEnvVar)
+	uri, ok := os.LookupEnv(ecsContainerMetadataUriEnvVar)
 	if !ok {
-		return "", fmt.Errorf("%s not set", ecsContainerMetadaUriEnvVar)
+		return "", fmt.Errorf("%s not set", ecsContainerMetadataUriEnvVar)
 	}
 	resp, err := http.Get(uri + "/task")
 	if err != nil {
@@ -89,9 +89,9 @@ func arnFromMetadataURI() (string, error) {
 }
 
 func arnFromMetadataFile() (string, error) {
-	filePath, ok := os.LookupEnv(ecsContainerMetadaFileEnvVar)
+	filePath, ok := os.LookupEnv(ecsContainerMetadataFileEnvVar)
 	if !ok {
-		return "", fmt.Errorf("%s not set", ecsContainerMetadaFileEnvVar)
+		return "", fmt.Errorf("%s not set", ecsContainerMetadataFileEnvVar)
 	}
 	// wait for the file to exist
 	ticker := time.NewTicker(1 * time.Second)
