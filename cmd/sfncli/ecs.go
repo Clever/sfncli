@@ -16,8 +16,8 @@ const magicECSTaskID = "MAGIC_ECS_TASK_ID"
 
 // TODO https://clever.atlassian.net/browse/INFRANG-4174. Update URI env variable
 // these are env vars the AWS ECS agent sets for us depending on ECS agent version or Fargate platform version
-const ecsContainerMetadaUriEnvVar = "ECS_CONTAINER_METADATA_URI"
-const ecsContainerMetadaFileEnvVar = "ECS_CONTAINER_METADATA_FILE"
+const ecsContainerMetadataUriEnvVar = "ECS_CONTAINER_METADATA_URI"
+const ecsContainerMetadataFileEnvVar = "ECS_CONTAINER_METADATA_FILE"
 
 // ecsContainerMetadata is a subset of fields in the container metadata file. Doc for reference:
 // https://docs.aws.amazon.com/AmazonECS/latest/developerguide/container-metadata.html#metadata-file-format
@@ -32,7 +32,7 @@ type ecsTaskMetadata struct {
 	TaskARN string
 }
 
-// expandECSMagicSrings uses ECS Container Metadata to magically populate the TaskARN or ID required to
+// expandECSMagicStrings uses ECS Container Metadata to magically populate the TaskARN or ID required to
 // register with AWS Step Functions.
 func expandECSMagicStrings(s string) (string, error) {
 	if !strings.Contains(s, magicECSTaskARN) && !strings.Contains(s, magicECSTaskID) {
@@ -54,7 +54,7 @@ func expandECSMagicStrings(s string) (string, error) {
 	return strings.Replace(s, magicECSTaskID, taskID, 1), nil
 }
 
-// lookupARN attempts to lookup the ARN of the running task ARN, preferring to use the metadata endpoint, or failing that, checking the metadata file
+// lookupARN attempts to lookup the ARN of the running task, preferring to use the metadata endpoint, or failing that, checking the metadata file
 func lookupARN() (string, error) {
 	arn, errURI := arnFromMetadataURI()
 	if errURI == nil {
