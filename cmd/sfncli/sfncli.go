@@ -75,7 +75,10 @@ func main() {
 	}
 	if *cloudWatchRegion == "" {
 		*cloudWatchRegion = *region
+	} else {
+		*cloudWatchRegion = os.ExpandEnv(*cloudWatchRegion)
 	}
+
 	if *workDirectory != "" {
 		if err := validateWorkDirectory(*workDirectory); err != nil {
 			fmt.Println(err)
