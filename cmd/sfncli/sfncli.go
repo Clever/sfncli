@@ -176,7 +176,7 @@ func main() {
 			cw.SetActiveState(true)
 			input := *getATOutput.Input
 			token := *getATOutput.TaskToken
-			log.InfoD("getactivitytask", logger.M{"input": input, "token": token})
+			log.TraceD("getactivitytask", logger.M{"input": input, "token": token})
 
 			// Create a context for this task. We'll cancel this context on errors.
 			// Anything spawned on behalf of the task should use this context.
