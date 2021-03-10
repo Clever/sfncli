@@ -111,9 +111,9 @@ func (t *TaskRunner) Process(ctx context.Context, args []string, input string) e
 	go t.handleSignals(ctx)
 
 	if tmpDir == "" {
-		t.logger.InfoD("exec-command-start", logger.M{"args": args, "cmd": t.cmd})
+		t.logger.TraceD("exec-command-start", logger.M{"args": args, "cmd": t.cmd})
 	} else {
-		t.logger.InfoD("exec-command-start", logger.M{"args": args, "cmd": t.cmd, "workdirectory": tmpDir})
+		t.logger.TraceD("exec-command-start", logger.M{"args": args, "cmd": t.cmd, "workdirectory": tmpDir})
 	}
 	start := time.Now()
 	if err := t.execCmd.Run(); err != nil {
