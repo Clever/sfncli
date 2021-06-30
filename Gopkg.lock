@@ -138,7 +138,7 @@
   revision = "9d24e82272b4f38b78bc8cff74fa936d31ccd8ef"
 
 [[projects]]
-  digest = "1:0923ed679d96b9e53b8c43892e2094ebb5dccd0a66709b20c90f43c37ff71ff1"
+  digest = "1:50d004f054daed9e7a380ec7896db8f38ba5ab769ec27a39e235be3d8c5e68fb"
   name = "gopkg.in/Clever/kayvee-go.v6"
   packages = [
     ".",
@@ -146,8 +146,8 @@
     "router",
   ]
   pruneopts = ""
-  revision = "1c544ce9daf62e3673f4f1ba0bffde53cd13f502"
-  version = "v6.24.0"
+  revision = "d3d46cc25d8af8345dca9c0097bc10bc542b70e8"
+  version = "v6.27.0"
 
 [[projects]]
   branch = "v2"
