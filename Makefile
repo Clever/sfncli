@@ -2,7 +2,7 @@ include golang.mk
 .DEFAULT_GOAL := test # override default goal set in library makefile
 
 SHELL := /bin/bash
-PKGS := $(shell go list ./... | grep -v /vendor)
+PKGS := $(shell go list ./... | grep -v /vendor | grep -v /tools)
 VERSION := $(shell head -n 1 VERSION)
 EXECUTABLE := sfncli
 EXECUTABLE_PKG := github.com/Clever/sfncli/cmd/sfncli
@@ -43,5 +43,5 @@ mocks:
 	rm -rf gen-go/mockcloudwatch && mkdir -p gen-go/mockcloudwatch
 	./bin/mockgen -source vendor/github.com/aws/aws-sdk-go/service/cloudwatch/cloudwatchiface/interface.go -destination gen-go/mockcloudwatch/mockcloudwatch.go -package mockcloudwatch
 
-install_deps: golang-dep-vendor-deps
-	$(call golang-dep-vendor)
+install_deps:
+	go mod vendor
