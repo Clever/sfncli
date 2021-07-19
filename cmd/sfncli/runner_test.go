@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Clever/sfncli/gen-go/mocksfn"
+	"github.com/Clever/sfncli/mocks"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/sfn"
 	"github.com/golang/mock/gomock"
@@ -66,7 +66,7 @@ func TestTaskFailureTaskInputNotJSON(t *testing.T) {
 
 	controller := gomock.NewController(t)
 	defer controller.Finish()
-	mockSFN := mocksfn.NewMockSFNAPI(controller)
+	mockSFN := mocks.NewMockSFNAPI(controller)
 	mockSFN.EXPECT().SendTaskFailure(&sfn.SendTaskFailureInput{
 		Cause:     aws.String(expectedError.ErrorCause()),
 		Error:     aws.String(expectedError.ErrorName()),
@@ -88,7 +88,7 @@ func TestTaskOutputEmptyStringAsJSON(t *testing.T) {
 
 	controller := gomock.NewController(t)
 	defer controller.Finish()
-	mockSFN := mocksfn.NewMockSFNAPI(controller)
+	mockSFN := mocks.NewMockSFNAPI(controller)
 	mockSFN.EXPECT().SendTaskSuccessWithContext(gomock.Any(), &sfn.SendTaskSuccessInput{
 		TaskToken: aws.String(mockTaskToken),
 		Output:    aws.String(`{"_EXECUTION_NAME":"fake-WFM-uuid"}`),
@@ -109,7 +109,7 @@ func TestTaskFailureCommandNotFound(t *testing.T) {
 
 	controller := gomock.NewController(t)
 	defer controller.Finish()
-	mockSFN := mocksfn.NewMockSFNAPI(controller)
+	mockSFN := mocks.NewMockSFNAPI(controller)
 	mockSFN.EXPECT().SendTaskFailure(&sfn.SendTaskFailureInput{
 		Cause:     aws.String(expectedError.ErrorCause()),
 		Error:     aws.String(expectedError.ErrorName()),
@@ -130,7 +130,7 @@ func TestTaskFailureCommandKilled(t *testing.T) {
 
 	controller := gomock.NewController(t)
 	defer controller.Finish()
-	mockSFN := mocksfn.NewMockSFNAPI(controller)
+	mockSFN := mocks.NewMockSFNAPI(controller)
 	mockSFN.EXPECT().SendTaskFailure(&sfn.SendTaskFailureInput{
 		Cause:     aws.String(expectedError.ErrorCause()),
 		Error:     aws.String(expectedError.ErrorName()),
@@ -155,7 +155,7 @@ func TestTaskFailureCommandExitedNonzero(t *testing.T) {
 
 	controller := gomock.NewController(t)
 	defer controller.Finish()
-	mockSFN := mocksfn.NewMockSFNAPI(controller)
+	mockSFN := mocks.NewMockSFNAPI(controller)
 	mockSFN.EXPECT().SendTaskFailure(&sfn.SendTaskFailureInput{
 		Cause:     aws.String(expectedError.ErrorCause()),
 		Error:     aws.String(expectedError.ErrorName()),
@@ -176,7 +176,7 @@ func TestTaskFailureCustomErrorName(t *testing.T) {
 
 	controller := gomock.NewController(t)
 	defer controller.Finish()
-	mockSFN := mocksfn.NewMockSFNAPI(controller)
+	mockSFN := mocks.NewMockSFNAPI(controller)
 	mockSFN.EXPECT().SendTaskFailure(&sfn.SendTaskFailureInput{
 		Cause:     aws.String(expectedError.ErrorCause()),
 		Error:     aws.String(expectedError.ErrorName()),
@@ -197,7 +197,7 @@ func TestTaskFailureTaskOutputNotJSON(t *testing.T) {
 
 	controller := gomock.NewController(t)
 	defer controller.Finish()
-	mockSFN := mocksfn.NewMockSFNAPI(controller)
+	mockSFN := mocks.NewMockSFNAPI(controller)
 	mockSFN.EXPECT().SendTaskFailure(&sfn.SendTaskFailureInput{
 		Cause:     aws.String(expectedError.ErrorCause()),
 		Error:     aws.String(expectedError.ErrorName()),
@@ -218,7 +218,7 @@ func TestTaskFailureCommandTerminated(t *testing.T) {
 
 		controller := gomock.NewController(t)
 		defer controller.Finish()
-		mockSFN := mocksfn.NewMockSFNAPI(controller)
+		mockSFN := mocks.NewMockSFNAPI(controller)
 		mockSFN.EXPECT().SendTaskFailure(&sfn.SendTaskFailureInput{
 			Cause:     aws.String(expectedError.ErrorCause()),
 			Error:     aws.String(expectedError.ErrorName()),
@@ -243,7 +243,7 @@ func TestTaskFailureCommandTerminated(t *testing.T) {
 
 		controller := gomock.NewController(t)
 		defer controller.Finish()
-		mockSFN := mocksfn.NewMockSFNAPI(controller)
+		mockSFN := mocks.NewMockSFNAPI(controller)
 		mockSFN.EXPECT().SendTaskFailure(&sfn.SendTaskFailureInput{
 			Cause:     aws.String(expectedError.ErrorCause()),
 			Error:     aws.String(expectedError.ErrorName()),
@@ -268,7 +268,7 @@ func TestTaskFailureCommandTerminated(t *testing.T) {
 
 		controller := gomock.NewController(t)
 		defer controller.Finish()
-		mockSFN := mocksfn.NewMockSFNAPI(controller)
+		mockSFN := mocks.NewMockSFNAPI(controller)
 		mockSFN.EXPECT().SendTaskFailure(&sfn.SendTaskFailureInput{
 			Cause:     aws.String(expectedError.ErrorCause()),
 			Error:     aws.String(expectedError.ErrorName()),
@@ -294,7 +294,7 @@ func TestTaskSuccessSignalForwarded(t *testing.T) {
 	cmdArgs := []string{}
 
 	controller := gomock.NewController(t)
-	mockSFN := mocksfn.NewMockSFNAPI(controller)
+	mockSFN := mocks.NewMockSFNAPI(controller)
 	mockSFN.EXPECT().SendTaskSuccessWithContext(gomock.Any(), &sfn.SendTaskSuccessInput{
 		Output:    aws.String(`{"_EXECUTION_NAME":"fake-WFM-uuid","signal":"1"}`),
 		TaskToken: aws.String(mockTaskToken),
@@ -316,7 +316,7 @@ func TestTaskSuccessOutputIsLastLineOfStdout(t *testing.T) {
 	cmdArgs := []string{}
 
 	controller := gomock.NewController(t)
-	mockSFN := mocksfn.NewMockSFNAPI(controller)
+	mockSFN := mocks.NewMockSFNAPI(controller)
 	mockSFN.EXPECT().SendTaskSuccessWithContext(gomock.Any(), &sfn.SendTaskSuccessInput{
 		Output:    aws.String(`{"_EXECUTION_NAME":"fake-WFM-uuid","task":"output"}`),
 		TaskToken: aws.String(mockTaskToken),
@@ -336,7 +336,7 @@ func TestTaskWorkDirectorySetup(t *testing.T) {
 
 	controller := gomock.NewController(t)
 	defer controller.Finish()
-	mockSFN := mocksfn.NewMockSFNAPI(controller)
+	mockSFN := mocks.NewMockSFNAPI(controller)
 	mockSFN.EXPECT().SendTaskSuccessWithContext(gomock.Any(), &workdirMatcher{
 		taskToken:      mockTaskToken,
 		expectedPrefix: "/tmp",
@@ -356,7 +356,7 @@ func TestTaskWorkDirectoryUnsetByDefault(t *testing.T) {
 
 	controller := gomock.NewController(t)
 	defer controller.Finish()
-	mockSFN := mocksfn.NewMockSFNAPI(controller)
+	mockSFN := mocks.NewMockSFNAPI(controller)
 	mockSFN.EXPECT().SendTaskSuccessWithContext(gomock.Any(), &sfn.SendTaskSuccessInput{
 		TaskToken: aws.String(mockTaskToken),
 		Output:    aws.String(`{"_EXECUTION_NAME":"fake-WFM-uuid","work_dir":""}`), // returns the result of WORK_DIR
@@ -376,7 +376,7 @@ func TestTaskWorkDirectoryCleaned(t *testing.T) {
 
 	controller := gomock.NewController(t)
 	defer controller.Finish()
-	mockSFN := mocksfn.NewMockSFNAPI(controller)
+	mockSFN := mocks.NewMockSFNAPI(controller)
 	dirMatcher := workdirMatcher{
 		taskToken:      mockTaskToken,
 		expectedPrefix: "/tmp/test",

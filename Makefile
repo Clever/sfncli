@@ -37,11 +37,10 @@ clean:
 
 mocks:
 	mkdir -p bin
-	go build -o ./bin/mockgen ./vendor/github.com/golang/mock/mockgen
-	rm -rf gen-go/mocksfn && mkdir -p gen-go/mocksfn
-	./bin/mockgen -source vendor/github.com/aws/aws-sdk-go/service/sfn/sfniface/interface.go -destination gen-go/mocksfn/mocksfn.go -package mocksfn
-	rm -rf gen-go/mockcloudwatch && mkdir -p gen-go/mockcloudwatch
-	./bin/mockgen -source vendor/github.com/aws/aws-sdk-go/service/cloudwatch/cloudwatchiface/interface.go -destination gen-go/mockcloudwatch/mockcloudwatch.go -package mockcloudwatch
+	go build -o ./bin/mockgen github.com/golang/mock/mockgen
+	rm -rf mocks/mock_*.go
+	./bin/mockgen -source ./vendor/github.com/aws/aws-sdk-go/service/sfn/sfniface/interface.go -destination mocks/mock_sfn.go -package mocks
+	./bin/mockgen -source ./vendor/github.com/aws/aws-sdk-go/service/cloudwatch/cloudwatchiface/interface.go -destination mocks/mock_cloudwatch.go -package mocks
 
 install_deps:
 	go mod vendor
