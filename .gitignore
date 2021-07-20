@@ -10,5 +10,5 @@
 vendor/
 bin/
 release/
-gen-go/
+mocks/mock_*.go
 cmd/sfncli/sfncli

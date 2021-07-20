@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Clever/sfncli/gen-go/mockcloudwatch"
+	"github.com/Clever/sfncli/mocks"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/cloudwatch"
 	"github.com/golang/mock/gomock"
@@ -21,7 +21,7 @@ func TestCloudWatchReporterReportsActiveZero(t *testing.T) {
 	defer testCtxCancel()
 	controller := gomock.NewController(t)
 	defer controller.Finish()
-	mockCW := mockcloudwatch.NewMockCloudWatchAPI(controller)
+	mockCW := mocks.NewMockCloudWatchAPI(controller)
 	cwr := NewCloudWatchReporter(mockCW, mockActivityArn)
 	go cwr.ReportActivePercent(testCtx, 100*time.Millisecond)
 	mockCW.EXPECT().PutMetricData(&cloudwatch.PutMetricDataInput{
@@ -44,7 +44,7 @@ func TestCloudWatchReporterReportsActiveFiftyPercent(t *testing.T) {
 	defer testCtxCancel()
 	controller := gomock.NewController(t)
 	defer controller.Finish()
-	mockCW := mockcloudwatch.NewMockCloudWatchAPI(controller)
+	mockCW := mocks.NewMockCloudWatchAPI(controller)
 	mockCW.EXPECT().PutMetricData(fuzzy(&cloudwatch.PutMetricDataInput{
 		MetricData: []*cloudwatch.MetricDatum{{
 			Dimensions: []*cloudwatch.Dimension{{
@@ -75,7 +75,7 @@ func TestCloudWatchReporterReportsActiveHundredPercent(t *testing.T) {
 	defer testCtxCancel()
 	controller := gomock.NewController(t)
 	defer controller.Finish()
-	mockCW := mockcloudwatch.NewMockCloudWatchAPI(controller)
+	mockCW := mocks.NewMockCloudWatchAPI(controller)
 	mockCW.EXPECT().PutMetricData(fuzzy(&cloudwatch.PutMetricDataInput{
 		MetricData: []*cloudwatch.MetricDatum{{
 			Dimensions: []*cloudwatch.Dimension{{
@@ -99,7 +99,7 @@ func TestCloudWatchReporterReportsActiveOneHundredPercentWhenPausedForever(t *te
 	defer testCtxCancel()
 	controller := gomock.NewController(t)
 	defer controller.Finish()
-	mockCW := mockcloudwatch.NewMockCloudWatchAPI(controller)
+	mockCW := mocks.NewMockCloudWatchAPI(controller)
 	mockCW.EXPECT().PutMetricData(fuzzy(&cloudwatch.PutMetricDataInput{
 		MetricData: []*cloudwatch.MetricDatum{{
 			Dimensions: []*cloudwatch.Dimension{{
@@ -137,7 +137,7 @@ func TestCloudWatchReporterReportsActiveOnehundredPercentWhenPaused(t *testing.T
 	defer testCtxCancel()
 	controller := gomock.NewController(t)
 	defer controller.Finish()
-	mockCW := mockcloudwatch.NewMockCloudWatchAPI(controller)
+	mockCW := mocks.NewMockCloudWatchAPI(controller)
 	mockCW.EXPECT().PutMetricData(fuzzy(&cloudwatch.PutMetricDataInput{
 		MetricData: []*cloudwatch.MetricDatum{{
 			Dimensions: []*cloudwatch.Dimension{{
@@ -173,7 +173,7 @@ func TestCloudWatchReporterReportsActiveFiftyPercentWhenPaused(t *testing.T) {
 	defer testCtxCancel()
 	controller := gomock.NewController(t)
 	defer controller.Finish()
-	mockCW := mockcloudwatch.NewMockCloudWatchAPI(controller)
+	mockCW := mocks.NewMockCloudWatchAPI(controller)
 	mockCW.EXPECT().PutMetricData(fuzzy(&cloudwatch.PutMetricDataInput{
 		MetricData: []*cloudwatch.MetricDatum{{
 			Dimensions: []*cloudwatch.Dimension{{
