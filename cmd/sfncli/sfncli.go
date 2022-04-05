@@ -232,6 +232,9 @@ func tagsFromEnv() []*sfn.Tag {
 	if account := os.Getenv("_POD_ACCOUNT"); account != "" {
 		tags = append(tags, &sfn.Tag{Key: aws.String("pod-account"), Value: aws.String(account)})
 	}
+	if team := os.Getenv("_TEAM_OWNER"); team != "" {
+		tags = append(tags, &sfn.Tag{Key: aws.String("team"), Value: aws.String(team)})
+	}
 
 	return tags
 }
