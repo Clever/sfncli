@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/sfn"
@@ -26,17 +27,35 @@ type TaskFailureError interface {
 func (t TaskRunner) sendTaskFailure(err TaskFailureError) error {
 	t.logger.ErrorD("send-task-failure", logger.M{"name": err.ErrorName(), "cause": err.ErrorCause()})
 
+	// Limits from https://docs.aws.amazon.com/step-functions/latest/apireference/API_SendTaskFailure.html
+	const maxErrorLength = 256
+	const maxCauseLength = 32768
+
 	// don't use SendTaskFailureWithContext, since the failure itself could be from the parent
 	// context being cancelled, but we still want to report to AWS the failure of the task.
 	_, sendErr := t.sfnapi.SendTaskFailure(&sfn.SendTaskFailureInput{
-		Error:     aws.String(err.ErrorName()),
-		Cause:     aws.String(err.ErrorCause()),
+		Error:     aws.String(truncateString(err.ErrorName(), maxErrorLength, "[truncated]")),
+		Cause:     aws.String(truncateString(err.ErrorCause(), maxCauseLength, "[truncated]")),
 		TaskToken: &t.taskToken,
 	})
 	if sendErr != nil {
 		t.logger.ErrorD("send-task-failure-error", logger.M{"error": sendErr.Error()})
 	}
 	return err
+}
+
+// Returns its input truncated to maxLength, with the ability to replace the end to indicate truncation.
+//
+// For example, truncateString(s, l, "") just truncates to length l. But truncateString(s, l, "xy") will
+// first truncate to length l, then replace the last two characters with "xy"
+func truncateString(s string, maxLength int, truncationIndicatorSuffix string) string {
+	if len(s) <= maxLength {
+		return s
+	}
+	// when we cut out some number of bytes from the end, we may be cutting in the middle of a multi-byte unicode char
+	// if so, we can use ToValidUTF8 to trim it a teeny bit further to eliminate the whole char.
+	// (Note, this does mean invalid UTF8 inputs will see more changes than expected, but we won't worry about that)
+	return strings.ToValidUTF8(s[:maxLength-len(truncationIndicatorSuffix)], "") + truncationIndicatorSuffix
 }
 
 // TaskFailureUnknown is used for any error that is unexpected or not understood completely.
