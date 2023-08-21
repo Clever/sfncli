@@ -46,7 +46,7 @@ sfncli -activityname sleep-100 -region us-west-2 --cloudwatchregion us-west-1 -w
     Parse the last line of the `stdout` of the command as the output for the task (it [must be JSON](https://states-language.net/spec.html#data)).
   - If `workdirectory` was set then cleanup `WORK_DIR`/sub-directory-for-task
 
-## Error names
+## Errors
 
 [Error names](https://states-language.net/spec.html#error-names) in SFN state machines are useful for debugging and setting up branching/retry logic in state machine definitions.
 `sfncli` will report the following error names if it encounters errors it can identify:
@@ -60,15 +60,16 @@ sfncli -activityname sleep-100 -region us-west-2 --cloudwatchregion us-west-1 -w
 - `sfncli.CommandTerminated`: `sfncli` or the command received SIGTERM
 - `sfncli.Unknown`: unexpected / unclassified errors
 
-Additionally, the `cmd` can report a custom a custom error name in its output by including an `error_name` key.
-`sfncli` will look for this key if the command exits with a nonzero exit code, and if it exists it will report this error name instead of `sfncli.CommandExitedNonzero`.
+The command should signal an error by exiting with a nonzero status code. In this case, the behavior is:
+1. If the last line of *stdout* was a JSON-formatted string with an `error` field, report an error to Step Functions with that field as the name and the value of the `cause` field in the output line as the cause.
+2. Otherwise, report an error with name `sfncli.CommandExitedNonzero` with the last line of *stderr* as the cause.
 
 ## Local testing
 
 Start up a test activity that runs `echo` on the work it receives.
 
 ```
-go run cmd/sfncli/*.go -region us-west-2 -activityname test-activity -cmd echo
+go run ./cmd/sfncli -region us-west-2 -activityname test-activity -workername sfncli-test -cmd echo
 ```
 
 Create a new state machine that uses this activity for one of its states (this requires you to [create a role for use with Step Functions](http://docs.aws.amazon.com/step-functions/latest/dg/procedure-create-iam-role.html)):
@@ -94,7 +95,7 @@ Note that you will need to replace the `Resource` above to reflect the correct A
 Start an execution of the state machine (again replacing the ARN below with the correct account ID):
 
 ```
-aws --region us-west-2 stepfunctions start-execution --state-machine-arn arn:aws:states:us-west-2:589690932525:stateMachine:test-state-machine  --input '{"hello": "world"}'
+aws --region us-west-2 stepfunctions start-execution --state-machine-arn arn:aws:states:us-west-2:589690932525:stateMachine:test-state-machine  --input '{"_EXECUTION_NAME":"en", "hello": "world"}'
 ```
 
 You should see `echo` run with the argument `{"hello": "world"}`.
