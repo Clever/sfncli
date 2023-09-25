@@ -110,12 +110,6 @@ func (t *TaskRunner) Process(ctx context.Context, args []string, input string) e
 	// forward signals to the command, handle SIGTERM
 	go t.handleSignals(ctx)
 
-	if tmpDir == "" {
-		t.logger.TraceD("exec-command-start", logger.M{"args": args, "cmd": t.cmd})
-	} else {
-		t.logger.TraceD("exec-command-start", logger.M{"args": args, "cmd": t.cmd, "workdirectory": tmpDir})
-	}
-	start := time.Now()
 	if err := t.execCmd.Run(); err != nil {
 		stderr := strings.TrimSpace(stderrbuf.String())                  // remove trailing newline
 		customError, _ := parseCustomErrorFromStdout(stdoutbuf.String()) // ignore parsing errors
@@ -142,7 +136,6 @@ func (t *TaskRunner) Process(ctx context.Context, args []string, input string) e
 		}
 		return t.sendTaskFailure(TaskFailureUnknown{err})
 	}
-	t.logger.InfoD("exec-command-end", logger.M{"duration_ns": time.Since(start)})
 
 	// AWS / states language requires JSON output
 	taskOutput := taskOutputFromStdout(stdoutbuf.String())

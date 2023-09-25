@@ -1,2 +1,2 @@
-v0.7.2
-Truncate error messages to fit within AWS limits.
+v0.7.3
+Remove logs tracking start and end time of exec
