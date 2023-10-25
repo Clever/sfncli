@@ -172,7 +172,8 @@ func (t *TaskRunner) Process(ctx context.Context, args []string, input string) e
 }
 
 func (t *TaskRunner) handleSignals(ctx context.Context) {
-	sigChan := make(chan os.Signal)
+	// a buffer of one should be safe here as we're basically just catching container exits
+	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan)
 	defer signal.Stop(sigChan)
 	for {
