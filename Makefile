@@ -32,7 +32,7 @@ release:
 	GOOS=darwin GOARCH=amd64 go build -ldflags="-s -w -X main.Version=$(VERSION)" \
 -o="$@/$(EXECUTABLE)-$(VERSION)-darwin-amd64" $(EXECUTABLE_PKG)
 	GOOS=darwin GOARCH=arm64 go build -ldflags="-s -w -X main.version=$(VERSION)" \
-		-o="$@/$(EXECUTABLE)-$(VERSION)-darwin-arm64" 
+-o="$@/$(EXECUTABLE)-$(VERSION)-darwin-arm64" 
 clean:
 	rm -rf bin release
 
