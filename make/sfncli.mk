@@ -1,6 +1,6 @@
 # This is the default sfncli Makefile.
 # Please do not alter this file directly.
-SFNCLI_MK_VERSION := 0.1.3
+SFNCLI_MK_VERSION := 0.1.4
 SHELL := /bin/bash
 SYSTEM := $(shell uname -a | cut -d" " -f1 | tr '[:upper:]' '[:lower:]')
 SFNCLI_INSTALLED := $(shell [[ -e "bin/sfncli" ]] && bin/sfncli --version)
