@@ -31,8 +31,8 @@ release:
 -o="$@/$(EXECUTABLE)-$(VERSION)-linux-amd64" $(EXECUTABLE_PKG)
 	GOOS=darwin GOARCH=amd64 go build -ldflags="-s -w -X main.Version=$(VERSION)" \
 -o="$@/$(EXECUTABLE)-$(VERSION)-darwin-amd64" $(EXECUTABLE_PKG)
-	GOOS=darwin GOARCH=arm64 go build -ldflags="-s -w -X main.version=$(VERSION)" \
--o="$@/$(EXECUTABLE)-$(VERSION)-darwin-arm64" 
+	GOOS=darwin GOARCH=arm64 go build -ldflags="-s -w -X main.Version=$(VERSION)" \
+-o="$@/$(EXECUTABLE)-$(VERSION)-darwin-arm64" $(EXECUTABLE_PKG)
 clean:
 	rm -rf bin release
 
