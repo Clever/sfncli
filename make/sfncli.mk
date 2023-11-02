@@ -1,6 +1,6 @@
 # This is the default sfncli Makefile.
 # Please do not alter this file directly.
-SFNCLI_MK_VERSION := 0.1.3
+SFNCLI_MK_VERSION := 0.1.4
 SHELL := /bin/bash
 SYSTEM := $(shell uname -a | cut -d" " -f1 | tr '[:upper:]' '[:lower:]')
 SFNCLI_INSTALLED := $(shell [[ -e "bin/sfncli" ]] && bin/sfncli --version)
@@ -11,6 +11,7 @@ SFNCLI_LATEST = $(shell \
 		https://api.github.com/repos/Clever/sfncli/releases/latest | \
 	grep tag_name | \
 	cut -d\" -f4)
+ARCH = $(shell go env GOARCH)
 
 .PHONY: bin/sfncli sfncli-update-makefile ensure-sfncli-version-set ensure-curl-installed
 
@@ -35,7 +36,7 @@ bin/sfncli: ensure-sfncli-version-set ensure-curl-installed
 		} \
 	else \
 		echo "Updating sfncli..."; \
-		curl --retry 5 --fail --max-time 30 -o bin/sfncli -sL https://github.com/Clever/sfncli/releases/download/$(SFNCLI_VERSION)/sfncli-$(SFNCLI_VERSION)-$(SYSTEM)-amd64 && \
+		curl --retry 5 --fail --max-time 30 -o bin/sfncli -sL https://github.com/Clever/sfncli/releases/download/$(SFNCLI_VERSION)/sfncli-$(SFNCLI_VERSION)-$(SYSTEM)-$(ARCH) && \
 		chmod +x bin/sfncli && \
 		echo "Successfully updated sfncli to $(SFNCLI_VERSION)" || \
 		{ [[ -z "$(SFNCLI_INSTALLED)" ]] && \
