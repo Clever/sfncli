@@ -268,7 +268,7 @@ func taskHeartbeatLoop(ctx context.Context, sfnapi sfniface.SFNAPI, token string
 	if err := sendTaskHeartbeat(ctx, sfnapi, token); err != nil {
 		return err
 	}
-	heartbeat := time.NewTicker(15 * time.Second)
+	heartbeat := time.NewTicker(20 * time.Second)
 	defer heartbeat.Stop()
 	for {
 		select {
