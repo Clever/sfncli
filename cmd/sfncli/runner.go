@@ -165,7 +165,7 @@ func (t *TaskRunner) Process(ctx context.Context, args []string, input string) e
 }
 
 func (t *TaskRunner) handleSignals(ctx context.Context) {
-	sigChan := make(chan os.Signal)
+	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan)
 	defer signal.Stop(sigChan)
 	for {
