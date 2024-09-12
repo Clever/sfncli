@@ -1,2 +1,2 @@
-v0.7.2
-Truncate error messages to fit within AWS limits.
+v0.7.4
+Increase heartbeat interval to manage sfnapi SendTaskHeartbeat throttling
