@@ -37,7 +37,7 @@ clean:
 
 mocks:
 	mkdir -p bin
-	go build -o ./bin/mockgen github.com/golang/mock/mockgen
+	go build -o bin/mockgen -mod=vendor ./vendor/github.com/golang/mock/mockgen
 	rm -rf mocks/mock_*.go
 	./bin/mockgen -source ./vendor/github.com/aws/aws-sdk-go/service/sfn/sfniface/interface.go -destination mocks/mock_sfn.go -package mocks
 	./bin/mockgen -source ./vendor/github.com/aws/aws-sdk-go/service/cloudwatch/cloudwatchiface/interface.go -destination mocks/mock_cloudwatch.go -package mocks
