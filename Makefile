@@ -9,7 +9,7 @@ EXECUTABLE_PKG := github.com/Clever/sfncli/cmd/sfncli
 
 .PHONY: all test $(PKGS) build install_deps release clean mocks
 
-$(eval $(call golang-version-check,1.21))
+$(eval $(call golang-version-check,1.24))
 
 all: test build release
 
