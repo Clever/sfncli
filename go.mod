@@ -1,6 +1,6 @@
 module github.com/Clever/sfncli
 
-go 1.21
+go 1.24
 
 require (
 	github.com/armon/circbuf v0.0.0-20150827004946-bbbad097214e
@@ -25,3 +25,5 @@ require (
 	gopkg.in/yaml.v2 v2.2.3-0.20190319135612-7b8349ac747c // indirect
 	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b // indirect
 )
+
+tool github.com/golang/mock/mockgen
