@@ -5,10 +5,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Clever/kayvee-go/v7/logger"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/cloudwatch"
 	"github.com/aws/aws-sdk-go-v2/service/cloudwatch/types"
-	"gopkg.in/Clever/kayvee-go.v6/logger"
 )
 
 // CloudWatchAPI defines the interface for CloudWatch API operations used by sfncli

@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/Clever/kayvee-go/v7/logger"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/sfn"
-	"gopkg.in/Clever/kayvee-go.v6/logger"
 )
 
 // States language has the concept of "Error Names"--unique strings that correspond

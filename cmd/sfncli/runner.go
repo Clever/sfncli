@@ -14,10 +14,10 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/Clever/kayvee-go/v7/logger"
 	"github.com/armon/circbuf"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/sfn"
-	"gopkg.in/Clever/kayvee-go.v6/logger"
 )
 
 // SFNAPI defines the interface for Step Functions API operations used by sfncli

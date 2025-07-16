@@ -10,13 +10,13 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/Clever/kayvee-go/v7/logger"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/cloudwatch"
 	"github.com/aws/aws-sdk-go-v2/service/sfn"
 	"github.com/aws/aws-sdk-go-v2/service/sfn/types"
 	"golang.org/x/time/rate"
-	"gopkg.in/Clever/kayvee-go.v6/logger"
 )
 
 var log = logger.New("sfncli")
@@ -198,7 +198,7 @@ func main() {
 				}
 			}()
 
-			// Start heartbeat loop for this task
+			// heartbeat loop for this task
 			go func() {
 				if err := taskHeartbeatLoop(taskCtx, sfnapi, token); err != nil {
 					log.ErrorD("heartbeat-error", logger.M{"error": err.Error()})
