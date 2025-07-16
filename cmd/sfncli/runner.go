@@ -15,11 +15,17 @@ import (
 	"time"
 
 	"github.com/armon/circbuf"
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/sfn"
-	"github.com/aws/aws-sdk-go/service/sfn/sfniface"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/sfn"
 	"gopkg.in/Clever/kayvee-go.v6/logger"
 )
+
+// SFNAPI defines the interface for Step Functions API operations used by sfncli
+type SFNAPI interface {
+	SendTaskFailure(ctx context.Context, params *sfn.SendTaskFailureInput, optFns ...func(*sfn.Options)) (*sfn.SendTaskFailureOutput, error)
+	SendTaskSuccess(ctx context.Context, params *sfn.SendTaskSuccessInput, optFns ...func(*sfn.Options)) (*sfn.SendTaskSuccessOutput, error)
+	SendTaskHeartbeat(ctx context.Context, params *sfn.SendTaskHeartbeatInput, optFns ...func(*sfn.Options)) (*sfn.SendTaskHeartbeatOutput, error)
+}
 
 // stay within documented limits of SFN APIs
 const (
@@ -29,7 +35,7 @@ const (
 
 // TaskRunner manages resources for executing a task
 type TaskRunner struct {
-	sfnapi             sfniface.SFNAPI
+	sfnapi             SFNAPI
 	taskToken          string
 	cmd                string
 	logger             logger.KayveeLogger
@@ -41,7 +47,7 @@ type TaskRunner struct {
 }
 
 // NewTaskRunner instantiates a new TaskRunner
-func NewTaskRunner(cmd string, sfnapi sfniface.SFNAPI, taskToken string, workDirectory string) TaskRunner {
+func NewTaskRunner(cmd string, sfnapi SFNAPI, taskToken string, workDirectory string) TaskRunner {
 	return TaskRunner{
 		sfnapi:        sfnapi,
 		taskToken:     taskToken,
@@ -153,15 +159,8 @@ func (t *TaskRunner) Process(ctx context.Context, args []string, input string) e
 	if err != nil {
 		return t.sendTaskFailure(TaskFailureUnknown{fmt.Errorf("JSON output re-marshalling failed. This should never happen. %s", err)})
 	}
-	_, err = t.sfnapi.SendTaskSuccessWithContext(ctx, &sfn.SendTaskSuccessInput{
-		Output:    aws.String(string(finalTaskOutput)),
-		TaskToken: &t.taskToken,
-	})
-	if err != nil {
-		t.logger.ErrorD("send-task-success-error", logger.M{"error": err.Error()})
-	}
 
-	return err
+	return t.sendTaskSuccess(string(finalTaskOutput))
 }
 
 func (t *TaskRunner) handleSignals(ctx context.Context) {
@@ -230,4 +229,18 @@ func taskOutputFromStdout(stdout string) string {
 		taskOutput = stdoutLines[len(stdoutLines)-1]
 	}
 	return taskOutput
+}
+
+func (t *TaskRunner) sendTaskSuccess(output string) error {
+	_, err := t.sfnapi.SendTaskSuccess(
+		context.Background(),
+		&sfn.SendTaskSuccessInput{
+			Output:    aws.String(output),
+			TaskToken: &t.taskToken,
+		},
+	)
+	if err != nil {
+		t.logger.ErrorD("send-task-success-error", logger.M{"error": err.Error()})
+	}
+	return err
 }

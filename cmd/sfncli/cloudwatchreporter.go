@@ -5,18 +5,23 @@ import (
 	"sync"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/cloudwatch"
-	"github.com/aws/aws-sdk-go/service/cloudwatch/cloudwatchiface"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/cloudwatch"
+	"github.com/aws/aws-sdk-go-v2/service/cloudwatch/types"
 	"gopkg.in/Clever/kayvee-go.v6/logger"
 )
+
+// CloudWatchAPI defines the interface for CloudWatch API operations used by sfncli
+type CloudWatchAPI interface {
+	PutMetricData(ctx context.Context, params *cloudwatch.PutMetricDataInput, optFns ...func(*cloudwatch.Options)) (*cloudwatch.PutMetricDataOutput, error)
+}
 
 const metricNameActivityActivePercent = "ActivityActivePercent"
 const namespaceStatesCustom = "StatesCustom"
 
 // CloudWatchReporter reports useful metrics about the activity.
 type CloudWatchReporter struct {
-	cwapi       cloudwatchiface.CloudWatchAPI
+	cwapi       CloudWatchAPI
 	activityArn string
 
 	// state to keep track of active percent
@@ -33,7 +38,7 @@ type CloudWatchReporter struct {
 	lastPausedStateChange time.Time
 }
 
-func NewCloudWatchReporter(cwapi cloudwatchiface.CloudWatchAPI, activityArn string) *CloudWatchReporter {
+func NewCloudWatchReporter(cwapi CloudWatchAPI, activityArn string) *CloudWatchReporter {
 	now := time.Now()
 	c := &CloudWatchReporter{
 		cwapi:       cwapi,
@@ -138,18 +143,19 @@ func (c *CloudWatchReporter) report() {
 
 func (c *CloudWatchReporter) putMetricData(activePercent float64) {
 	log.TraceD("put-metric-data", logger.M{"activity-arn": c.activityArn, "metric-name": metricNameActivityActivePercent, "value": activePercent})
-	if _, err := c.cwapi.PutMetricData(&cloudwatch.PutMetricDataInput{
-		MetricData: []*cloudwatch.MetricDatum{{
-			Dimensions: []*cloudwatch.Dimension{{
+	_, err := c.cwapi.PutMetricData(context.Background(), &cloudwatch.PutMetricDataInput{
+		MetricData: []types.MetricDatum{{
+			Dimensions: []types.Dimension{{
 				Name:  aws.String("ActivityArn"),
 				Value: aws.String(c.activityArn),
 			}},
 			MetricName: aws.String(metricNameActivityActivePercent),
-			Unit:       aws.String(cloudwatch.StandardUnitPercent),
+			Unit:       types.StandardUnitPercent,
 			Value:      aws.Float64(activePercent),
 		}},
 		Namespace: aws.String(namespaceStatesCustom),
-	}); err != nil {
+	})
+	if err != nil {
 		log.ErrorD("put-metric-data", logger.M{"error": err.Error()})
 	}
 }

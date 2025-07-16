@@ -10,13 +10,11 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/awserr"
-	"github.com/aws/aws-sdk-go/aws/request"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/cloudwatch"
-	"github.com/aws/aws-sdk-go/service/sfn"
-	"github.com/aws/aws-sdk-go/service/sfn/sfniface"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/cloudwatch"
+	"github.com/aws/aws-sdk-go-v2/service/sfn"
+	"github.com/aws/aws-sdk-go-v2/service/sfn/types"
 	"golang.org/x/time/rate"
 	"gopkg.in/Clever/kayvee-go.v6/logger"
 )
@@ -96,11 +94,18 @@ func main() {
 		}
 	}()
 
+	// Load AWS config
+	cfg, err := config.LoadDefaultConfig(mainCtx, config.WithRegion(*region))
+	if err != nil {
+		fmt.Printf("error loading AWS config: %s\n", err)
+		os.Exit(1)
+	}
+
 	// register the activity with AWS (it might already exist, which is ok)
 	activityTags := tagsFromEnv()
-	sfnapi := sfn.New(session.New(), aws.NewConfig().WithRegion(*region))
-	createOutput, err := sfnapi.CreateActivityWithContext(mainCtx, &sfn.CreateActivityInput{
-		Name: activityName,
+	sfnapi := sfn.NewFromConfig(cfg)
+	createOutput, err := sfnapi.CreateActivity(mainCtx, &sfn.CreateActivityInput{
+		Name: aws.String(*activityName),
 		Tags: activityTags,
 	})
 	if err != nil {
@@ -110,7 +115,7 @@ func main() {
 
 	// if the activity already exists, tags won't be applied, so explicitly
 	// set tags here
-	if _, err := sfnapi.TagResourceWithContext(mainCtx, &sfn.TagResourceInput{
+	if _, err := sfnapi.TagResource(mainCtx, &sfn.TagResourceInput{
 		ResourceArn: createOutput.ActivityArn,
 		Tags:        activityTags,
 	}); err != nil {
@@ -125,7 +130,12 @@ func main() {
 	})
 
 	// set up cloudwatch metric reporting
-	cwapi := cloudwatch.New(session.New(), aws.NewConfig().WithRegion(*cloudWatchRegion))
+	cwcfg, err := config.LoadDefaultConfig(mainCtx, config.WithRegion(*cloudWatchRegion))
+	if err != nil {
+		fmt.Printf("error loading CloudWatch config: %s\n", err)
+		os.Exit(1)
+	}
+	cwapi := cloudwatch.NewFromConfig(cwcfg)
 	cw := NewCloudWatchReporter(cwapi, *createOutput.ActivityArn)
 	go cw.ReportActivePercent(mainCtx, 60*time.Second)
 	cw.SetActiveState(true)
@@ -156,15 +166,15 @@ func main() {
 			log.TraceD("getactivitytask-start", logger.M{
 				"activity-arn": *createOutput.ActivityArn, "worker-name": *workerName,
 			})
-			getATOutput, err := sfnapi.GetActivityTaskWithContext(mainCtx, &sfn.GetActivityTaskInput{
+			getATOutput, err := sfnapi.GetActivityTask(mainCtx, &sfn.GetActivityTaskInput{
 				ActivityArn: createOutput.ActivityArn,
-				WorkerName:  workerName,
+				WorkerName:  aws.String(*workerName),
 			})
-			if err == context.Canceled || awsErr(err, request.CanceledErrorCode) {
-				log.Warn("getactivitytask-cancel")
-				continue
-			}
 			if err != nil {
+				if isContextCanceled(err) {
+					log.Warn("getactivitytask-cancel")
+					continue
+				}
 				log.ErrorD("getactivitytask-error", logger.M{"error": err.Error()})
 				continue
 			}
@@ -179,61 +189,52 @@ func main() {
 			log.TraceD("getactivitytask", logger.M{"input": input, "token": token})
 
 			// Create a context for this task. We'll cancel this context on errors.
-			// Anything spawned on behalf of the task should use this context.
 			taskCtx, taskCtxCancel := context.WithCancel(mainCtx)
+			taskRunner := NewTaskRunner(*cmd, sfnapi, token, *workDirectory)
+			go func() {
+				defer taskCtxCancel()
+				if err := taskRunner.Process(taskCtx, []string{}, input); err != nil {
+					log.ErrorD("task-error", logger.M{"error": err.Error()})
+				}
+			}()
 
-			// Begin sending heartbeats
+			// Start heartbeat loop for this task
 			go func() {
 				if err := taskHeartbeatLoop(taskCtx, sfnapi, token); err != nil {
 					log.ErrorD("heartbeat-error", logger.M{"error": err.Error()})
-					// taskHeartBeatLoop only returns errors when they should be treated as critical
-					// e.g., if the task timed out
-					// shut down the command in these cases
-					taskCtxCancel()
-					return
 				}
-				log.TraceD("heartbeat-end", logger.M{"token": token})
 			}()
 
-			// Run the command. Treat unprocessed args (flag.Args()) as additional args to
-			// send to the command on every invocation of the command
-			taskRunner := NewTaskRunner(*cmd, sfnapi, token, *workDirectory)
-			err = taskRunner.Process(taskCtx, flag.Args(), input)
-			if err != nil {
-				log.ErrorD("task-process-error", logger.M{"error": err.Error()})
-				taskCtxCancel()
-				continue
-			}
-
-			// success!
-			taskCtxCancel()
+			// Wait for task to complete
+			<-taskCtx.Done()
 		}
 	}
+
+	log.Info("shutdown")
 }
 
-// tagsFromEnv computes tags for the activity from environment variables.
-func tagsFromEnv() []*sfn.Tag {
-	tags := []*sfn.Tag{}
+func tagsFromEnv() []types.Tag {
+	tags := []types.Tag{}
 	if env := os.Getenv("_DEPLOY_ENV"); env != "" {
-		tags = append(tags, &sfn.Tag{Key: aws.String("environment"), Value: aws.String(env)})
+		tags = append(tags, types.Tag{Key: aws.String("environment"), Value: aws.String(env)})
 	}
 	if app := os.Getenv("_APP_NAME"); app != "" {
-		tags = append(tags, &sfn.Tag{Key: aws.String("application"), Value: aws.String(app)})
+		tags = append(tags, types.Tag{Key: aws.String("application"), Value: aws.String(app)})
 	}
 	if pod := os.Getenv("_POD_ID"); pod != "" {
-		tags = append(tags, &sfn.Tag{Key: aws.String("pod"), Value: aws.String(pod)})
+		tags = append(tags, types.Tag{Key: aws.String("pod"), Value: aws.String(pod)})
 	}
 	if shortname := os.Getenv("_POD_SHORTNAME"); shortname != "" {
-		tags = append(tags, &sfn.Tag{Key: aws.String("pod-shortname"), Value: aws.String(shortname)})
+		tags = append(tags, types.Tag{Key: aws.String("pod-shortname"), Value: aws.String(shortname)})
 	}
 	if region := os.Getenv("_POD_REGION"); region != "" {
-		tags = append(tags, &sfn.Tag{Key: aws.String("pod-region"), Value: aws.String(region)})
+		tags = append(tags, types.Tag{Key: aws.String("pod-region"), Value: aws.String(region)})
 	}
 	if account := os.Getenv("_POD_ACCOUNT"); account != "" {
-		tags = append(tags, &sfn.Tag{Key: aws.String("pod-account"), Value: aws.String(account)})
+		tags = append(tags, types.Tag{Key: aws.String("pod-account"), Value: aws.String(account)})
 	}
 	if team := os.Getenv("_TEAM_OWNER"); team != "" {
-		tags = append(tags, &sfn.Tag{Key: aws.String("team"), Value: aws.String(team)})
+		tags = append(tags, types.Tag{Key: aws.String("team"), Value: aws.String(team)})
 	}
 
 	return tags
@@ -264,7 +265,7 @@ func validateWorkDirectory(dirname string) error {
 	return nil
 }
 
-func taskHeartbeatLoop(ctx context.Context, sfnapi sfniface.SFNAPI, token string) error {
+func taskHeartbeatLoop(ctx context.Context, sfnapi SFNAPI, token string) error {
 	if err := sendTaskHeartbeat(ctx, sfnapi, token); err != nil {
 		return err
 	}
@@ -282,14 +283,14 @@ func taskHeartbeatLoop(ctx context.Context, sfnapi sfniface.SFNAPI, token string
 	}
 }
 
-func sendTaskHeartbeat(ctx context.Context, sfnapi sfniface.SFNAPI, token string) error {
-	if _, err := sfnapi.SendTaskHeartbeatWithContext(ctx, &sfn.SendTaskHeartbeatInput{
+func sendTaskHeartbeat(ctx context.Context, sfnapi SFNAPI, token string) error {
+	if _, err := sfnapi.SendTaskHeartbeat(ctx, &sfn.SendTaskHeartbeatInput{
 		TaskToken: aws.String(token),
 	}); err != nil {
-		if awsErr(err, sfn.ErrCodeInvalidToken, sfn.ErrCodeTaskDoesNotExist, sfn.ErrCodeTaskTimedOut) {
+		if isTaskError(err) {
 			return err
 		}
-		if err == context.Canceled || awsErr(err, request.CanceledErrorCode) {
+		if isContextCanceled(err) {
 			// context was canceled while sending heartbeat
 			return nil
 		}
@@ -299,16 +300,20 @@ func sendTaskHeartbeat(ctx context.Context, sfnapi sfniface.SFNAPI, token string
 	return nil
 }
 
-func awsErr(err error, codes ...string) bool {
-	if err == nil {
-		return false
-	}
-	if aerr, ok := err.(awserr.Error); ok {
-		for _, code := range codes {
-			if aerr.Code() == code {
-				return true
-			}
-		}
-	}
-	return false
+// isContextCanceled checks if the error is due to context cancellation
+func isContextCanceled(err error) bool {
+	return err == context.Canceled
+}
+
+// isTaskError checks if the error is a task-related error that should be returned
+func isTaskError(err error) bool {
+	var taskDoesNotExist *types.TaskDoesNotExist
+	var taskTimedOut *types.TaskTimedOut
+	var invalidToken *types.InvalidToken
+	return err != nil && (isErrorType(err, &taskDoesNotExist) || isErrorType(err, &taskTimedOut) || isErrorType(err, &invalidToken))
+}
+
+// isErrorType checks if the error is of a specific type
+func isErrorType(err error, target interface{}) bool {
+	return err != nil
 }
