@@ -226,8 +226,6 @@ func main() {
 			taskCtxCancel()
 		}
 	}
-
-	log.Info("shutdown")
 }
 
 func tagsFromEnv() []types.Tag {
