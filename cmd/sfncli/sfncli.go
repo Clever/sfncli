@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"io/ioutil"
@@ -16,6 +17,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/cloudwatch"
 	"github.com/aws/aws-sdk-go-v2/service/sfn"
 	"github.com/aws/aws-sdk-go-v2/service/sfn/types"
+	"github.com/aws/smithy-go"
 	"golang.org/x/time/rate"
 )
 
@@ -171,7 +173,13 @@ func main() {
 				WorkerName:  aws.String(*workerName),
 			})
 			if err != nil {
-				if isContextCanceled(err) {
+				// if the context is canceled or request is canceled, we can continue
+				if err == context.Canceled {
+					log.Warn("getactivitytask-cancel")
+					continue
+				}
+				var opErr *smithy.OperationError
+				if errors.As(err, &opErr) && opErr.Err.Error() == "request canceled" {
 					log.Warn("getactivitytask-cancel")
 					continue
 				}
@@ -190,23 +198,32 @@ func main() {
 
 			// Create a context for this task. We'll cancel this context on errors.
 			taskCtx, taskCtxCancel := context.WithCancel(mainCtx)
-			taskRunner := NewTaskRunner(*cmd, sfnapi, token, *workDirectory)
-			go func() {
-				defer taskCtxCancel()
-				if err := taskRunner.Process(taskCtx, []string{}, input); err != nil {
-					log.ErrorD("task-error", logger.M{"error": err.Error()})
-				}
-			}()
 
-			// heartbeat loop for this task
+			// Begin sending heartbeats
 			go func() {
 				if err := taskHeartbeatLoop(taskCtx, sfnapi, token); err != nil {
 					log.ErrorD("heartbeat-error", logger.M{"error": err.Error()})
+					// taskHeartBeatLoop only returns errors when they should be treated as critical
+					// e.g., if the task timed out
+					// shut down the command in these cases
+					taskCtxCancel()
+					return
 				}
+				log.TraceD("heartbeat-end", logger.M{"token": token})
 			}()
 
-			// Wait for task to complete
-			<-taskCtx.Done()
+			// Run the command. Treat unprocessed args (flag.Args()) as additional args to
+			// send to the command on every invocation of the command
+			taskRunner := NewTaskRunner(*cmd, sfnapi, token, *workDirectory)
+			err = taskRunner.Process(taskCtx, []string{}, input)
+			if err != nil {
+				log.ErrorD("task-process-error", logger.M{"error": err.Error()})
+				taskCtxCancel()
+				continue
+			}
+
+			// success!
+			taskCtxCancel()
 		}
 	}
 
@@ -287,10 +304,13 @@ func sendTaskHeartbeat(ctx context.Context, sfnapi SFNAPI, token string) error {
 	if _, err := sfnapi.SendTaskHeartbeat(ctx, &sfn.SendTaskHeartbeatInput{
 		TaskToken: aws.String(token),
 	}); err != nil {
-		if isTaskError(err) {
+		var taskDoesNotExist *types.TaskDoesNotExist
+		var taskTimedOut *types.TaskTimedOut
+		var invalidToken *types.InvalidToken
+		if err != nil && (errors.As(err, &taskDoesNotExist) || errors.As(err, &taskTimedOut) || errors.As(err, &invalidToken)) {
 			return err
 		}
-		if isContextCanceled(err) {
+		if err == context.Canceled {
 			// context was canceled while sending heartbeat
 			return nil
 		}
@@ -298,22 +318,4 @@ func sendTaskHeartbeat(ctx context.Context, sfnapi SFNAPI, token string) error {
 	}
 	log.Trace("heartbeat-sent")
 	return nil
-}
-
-// isContextCanceled checks if the error is due to context cancellation
-func isContextCanceled(err error) bool {
-	return err == context.Canceled
-}
-
-// isTaskError checks if the error is a task-related error that should be returned
-func isTaskError(err error) bool {
-	var taskDoesNotExist *types.TaskDoesNotExist
-	var taskTimedOut *types.TaskTimedOut
-	var invalidToken *types.InvalidToken
-	return err != nil && (isErrorType(err, &taskDoesNotExist) || isErrorType(err, &taskTimedOut) || isErrorType(err, &invalidToken))
-}
-
-// isErrorType checks if the error is of a specific type
-func isErrorType(err error, target interface{}) bool {
-	return err != nil
 }

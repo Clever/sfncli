@@ -160,7 +160,7 @@ func (t *TaskRunner) Process(ctx context.Context, args []string, input string) e
 		return t.sendTaskFailure(TaskFailureUnknown{fmt.Errorf("JSON output re-marshalling failed. This should never happen. %s", err)})
 	}
 
-	return t.sendTaskSuccess(string(finalTaskOutput))
+	return t.sendTaskSuccess(ctx, string(finalTaskOutput))
 }
 
 func (t *TaskRunner) handleSignals(ctx context.Context) {
@@ -231,9 +231,9 @@ func taskOutputFromStdout(stdout string) string {
 	return taskOutput
 }
 
-func (t *TaskRunner) sendTaskSuccess(output string) error {
+func (t *TaskRunner) sendTaskSuccess(ctx context.Context, output string) error {
 	_, err := t.sfnapi.SendTaskSuccess(
-		context.Background(),
+		ctx,
 		&sfn.SendTaskSuccessInput{
 			Output:    aws.String(output),
 			TaskToken: &t.taskToken,

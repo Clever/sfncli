@@ -62,7 +62,7 @@ func (c *CloudWatchReporter) ReportActivePercent(ctx context.Context, interval t
 		case <-ctx.Done():
 			break
 		case <-ticker.C:
-			c.report()
+			c.report(ctx)
 		}
 	}
 }
@@ -114,7 +114,7 @@ func maxTime(a, b time.Time) time.Time {
 }
 
 // report computes and sends the active time metric to cloudwatch, resetting state related to tracking active time.
-func (c *CloudWatchReporter) report() {
+func (c *CloudWatchReporter) report(ctx context.Context) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	now := time.Now()
@@ -138,12 +138,12 @@ func (c *CloudWatchReporter) report() {
 	c.activeTime = time.Duration(0)
 	c.pausedTime = time.Duration(0)
 	// fire and forget the metric
-	go c.putMetricData(activePercent)
+	go c.putMetricData(ctx, activePercent)
 }
 
-func (c *CloudWatchReporter) putMetricData(activePercent float64) {
+func (c *CloudWatchReporter) putMetricData(ctx context.Context, activePercent float64) {
 	log.TraceD("put-metric-data", logger.M{"activity-arn": c.activityArn, "metric-name": metricNameActivityActivePercent, "value": activePercent})
-	_, err := c.cwapi.PutMetricData(context.Background(), &cloudwatch.PutMetricDataInput{
+	_, err := c.cwapi.PutMetricData(ctx, &cloudwatch.PutMetricDataInput{
 		MetricData: []types.MetricDatum{{
 			Dimensions: []types.Dimension{{
 				Name:  aws.String("ActivityArn"),
