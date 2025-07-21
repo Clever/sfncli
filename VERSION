@@ -1,2 +1,5 @@
+v0.8.1
+Pre-release: migrate to aws-sdk-go-v2
+
 v0.8.0
 Go 1.21 update

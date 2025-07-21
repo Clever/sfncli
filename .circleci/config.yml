@@ -26,3 +26,4 @@ jobs:
     - run: make build
     - run: make test
     - run: if [ "${CIRCLE_BRANCH}" == "master" ]; then make release && $HOME/ci-scripts/circleci/github-release $GH_RELEASE_TOKEN release; fi;
+    - run: if [[ "${CIRCLE_BRANCH}" == *"prerelease"* ]]; then make release && $HOME/ci-scripts/circleci/github-release $GH_RELEASE_TOKEN release --prerelease; fi;
