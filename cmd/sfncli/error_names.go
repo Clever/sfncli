@@ -1,12 +1,13 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/sfn"
-	"gopkg.in/Clever/kayvee-go.v6/logger"
+	"github.com/Clever/kayvee-go/v7/logger"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/sfn"
 )
 
 // States language has the concept of "Error Names"--unique strings that correspond
@@ -31,13 +32,14 @@ func (t TaskRunner) sendTaskFailure(err TaskFailureError) error {
 	const maxErrorLength = 256
 	const maxCauseLength = 32768
 
-	// don't use SendTaskFailureWithContext, since the failure itself could be from the parent
-	// context being cancelled, but we still want to report to AWS the failure of the task.
-	_, sendErr := t.sfnapi.SendTaskFailure(&sfn.SendTaskFailureInput{
-		Error:     aws.String(truncateString(err.ErrorName(), maxErrorLength, "[truncated]")),
-		Cause:     aws.String(truncateString(err.ErrorCause(), maxCauseLength, "[truncated]")),
-		TaskToken: &t.taskToken,
-	})
+	_, sendErr := t.sfnapi.SendTaskFailure(
+		context.Background(),
+		&sfn.SendTaskFailureInput{
+			Error:     aws.String(truncateString(err.ErrorName(), maxErrorLength, "[truncated]")),
+			Cause:     aws.String(truncateString(err.ErrorCause(), maxCauseLength, "[truncated]")),
+			TaskToken: &t.taskToken,
+		},
+	)
 	if sendErr != nil {
 		t.logger.ErrorD("send-task-failure-error", logger.M{"error": sendErr.Error()})
 	}

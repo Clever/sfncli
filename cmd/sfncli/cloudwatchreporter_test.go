@@ -9,8 +9,9 @@ import (
 	"time"
 
 	"github.com/Clever/sfncli/mocks"
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/cloudwatch"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/cloudwatch"
+	"github.com/aws/aws-sdk-go-v2/service/cloudwatch/types"
 	"github.com/golang/mock/gomock"
 )
 
@@ -24,14 +25,14 @@ func TestCloudWatchReporterReportsActiveZero(t *testing.T) {
 	mockCW := mocks.NewMockCloudWatchAPI(controller)
 	cwr := NewCloudWatchReporter(mockCW, mockActivityArn)
 	go cwr.ReportActivePercent(testCtx, 100*time.Millisecond)
-	mockCW.EXPECT().PutMetricData(&cloudwatch.PutMetricDataInput{
-		MetricData: []*cloudwatch.MetricDatum{{
-			Dimensions: []*cloudwatch.Dimension{{
+	mockCW.EXPECT().PutMetricData(gomock.Any(), &cloudwatch.PutMetricDataInput{
+		MetricData: []types.MetricDatum{{
+			Dimensions: []types.Dimension{{
 				Name:  aws.String("ActivityArn"),
 				Value: aws.String(mockActivityArn),
 			}},
 			MetricName: aws.String(metricNameActivityActivePercent),
-			Unit:       aws.String(cloudwatch.StandardUnitPercent),
+			Unit:       types.StandardUnitPercent,
 			Value:      aws.Float64(0.0),
 		}},
 		Namespace: aws.String(namespaceStatesCustom),
@@ -45,14 +46,14 @@ func TestCloudWatchReporterReportsActiveFiftyPercent(t *testing.T) {
 	controller := gomock.NewController(t)
 	defer controller.Finish()
 	mockCW := mocks.NewMockCloudWatchAPI(controller)
-	mockCW.EXPECT().PutMetricData(fuzzy(&cloudwatch.PutMetricDataInput{
-		MetricData: []*cloudwatch.MetricDatum{{
-			Dimensions: []*cloudwatch.Dimension{{
+	mockCW.EXPECT().PutMetricData(gomock.Any(), fuzzy(&cloudwatch.PutMetricDataInput{
+		MetricData: []types.MetricDatum{{
+			Dimensions: []types.Dimension{{
 				Name:  aws.String("ActivityArn"),
 				Value: aws.String(mockActivityArn),
 			}},
 			MetricName: aws.String(metricNameActivityActivePercent),
-			Unit:       aws.String(cloudwatch.StandardUnitPercent),
+			Unit:       types.StandardUnitPercent,
 			Value:      aws.Float64(50.0),
 		}},
 		Namespace: aws.String(namespaceStatesCustom),
@@ -76,14 +77,14 @@ func TestCloudWatchReporterReportsActiveHundredPercent(t *testing.T) {
 	controller := gomock.NewController(t)
 	defer controller.Finish()
 	mockCW := mocks.NewMockCloudWatchAPI(controller)
-	mockCW.EXPECT().PutMetricData(fuzzy(&cloudwatch.PutMetricDataInput{
-		MetricData: []*cloudwatch.MetricDatum{{
-			Dimensions: []*cloudwatch.Dimension{{
+	mockCW.EXPECT().PutMetricData(gomock.Any(), fuzzy(&cloudwatch.PutMetricDataInput{
+		MetricData: []types.MetricDatum{{
+			Dimensions: []types.Dimension{{
 				Name:  aws.String("ActivityArn"),
 				Value: aws.String(mockActivityArn),
 			}},
 			MetricName: aws.String(metricNameActivityActivePercent),
-			Unit:       aws.String(cloudwatch.StandardUnitPercent),
+			Unit:       types.StandardUnitPercent,
 			Value:      aws.Float64(100.0),
 		}},
 		Namespace: aws.String(namespaceStatesCustom),
@@ -100,14 +101,14 @@ func TestCloudWatchReporterReportsActiveOneHundredPercentWhenPausedForever(t *te
 	controller := gomock.NewController(t)
 	defer controller.Finish()
 	mockCW := mocks.NewMockCloudWatchAPI(controller)
-	mockCW.EXPECT().PutMetricData(fuzzy(&cloudwatch.PutMetricDataInput{
-		MetricData: []*cloudwatch.MetricDatum{{
-			Dimensions: []*cloudwatch.Dimension{{
+	mockCW.EXPECT().PutMetricData(gomock.Any(), fuzzy(&cloudwatch.PutMetricDataInput{
+		MetricData: []types.MetricDatum{{
+			Dimensions: []types.Dimension{{
 				Name:  aws.String("ActivityArn"),
 				Value: aws.String(mockActivityArn),
 			}},
 			MetricName: aws.String(metricNameActivityActivePercent),
-			Unit:       aws.String(cloudwatch.StandardUnitPercent),
+			Unit:       types.StandardUnitPercent,
 			Value:      aws.Float64(100.0),
 		}},
 		Namespace: aws.String(namespaceStatesCustom),
@@ -138,14 +139,14 @@ func TestCloudWatchReporterReportsActiveOnehundredPercentWhenPaused(t *testing.T
 	controller := gomock.NewController(t)
 	defer controller.Finish()
 	mockCW := mocks.NewMockCloudWatchAPI(controller)
-	mockCW.EXPECT().PutMetricData(fuzzy(&cloudwatch.PutMetricDataInput{
-		MetricData: []*cloudwatch.MetricDatum{{
-			Dimensions: []*cloudwatch.Dimension{{
+	mockCW.EXPECT().PutMetricData(gomock.Any(), fuzzy(&cloudwatch.PutMetricDataInput{
+		MetricData: []types.MetricDatum{{
+			Dimensions: []types.Dimension{{
 				Name:  aws.String("ActivityArn"),
 				Value: aws.String(mockActivityArn),
 			}},
 			MetricName: aws.String(metricNameActivityActivePercent),
-			Unit:       aws.String(cloudwatch.StandardUnitPercent),
+			Unit:       types.StandardUnitPercent,
 			Value:      aws.Float64(100.0),
 		}},
 		Namespace: aws.String(namespaceStatesCustom),
@@ -174,14 +175,14 @@ func TestCloudWatchReporterReportsActiveFiftyPercentWhenPaused(t *testing.T) {
 	controller := gomock.NewController(t)
 	defer controller.Finish()
 	mockCW := mocks.NewMockCloudWatchAPI(controller)
-	mockCW.EXPECT().PutMetricData(fuzzy(&cloudwatch.PutMetricDataInput{
-		MetricData: []*cloudwatch.MetricDatum{{
-			Dimensions: []*cloudwatch.Dimension{{
+	mockCW.EXPECT().PutMetricData(gomock.Any(), fuzzy(&cloudwatch.PutMetricDataInput{
+		MetricData: []types.MetricDatum{{
+			Dimensions: []types.Dimension{{
 				Name:  aws.String("ActivityArn"),
 				Value: aws.String(mockActivityArn),
 			}},
 			MetricName: aws.String(metricNameActivityActivePercent),
-			Unit:       aws.String(cloudwatch.StandardUnitPercent),
+			Unit:       types.StandardUnitPercent,
 			Value:      aws.Float64(50.0),
 		}},
 		Namespace: aws.String(namespaceStatesCustom),
@@ -225,7 +226,9 @@ func (f fuzzyMatcher) Matches(x interface{}) bool {
 		return reflect.DeepEqual(f.expected, got)
 	}
 	for i, md := range f.expected.MetricData {
-		if math.Abs(aws.Float64Value(md.Value)-aws.Float64Value(got.MetricData[i].Value)) > epsilon {
+		expectedValue := *md.Value
+		gotValue := *got.MetricData[i].Value
+		if math.Abs(expectedValue-gotValue) > epsilon {
 			return false
 		}
 		// so that deepequal succeeds, make values match exactly if they're within epsilon

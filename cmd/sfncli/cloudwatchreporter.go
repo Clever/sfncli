@@ -5,18 +5,23 @@ import (
 	"sync"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/cloudwatch"
-	"github.com/aws/aws-sdk-go/service/cloudwatch/cloudwatchiface"
-	"gopkg.in/Clever/kayvee-go.v6/logger"
+	"github.com/Clever/kayvee-go/v7/logger"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/cloudwatch"
+	"github.com/aws/aws-sdk-go-v2/service/cloudwatch/types"
 )
+
+// CloudWatchAPI defines the interface for CloudWatch API operations used by sfncli
+type CloudWatchAPI interface {
+	PutMetricData(ctx context.Context, params *cloudwatch.PutMetricDataInput, optFns ...func(*cloudwatch.Options)) (*cloudwatch.PutMetricDataOutput, error)
+}
 
 const metricNameActivityActivePercent = "ActivityActivePercent"
 const namespaceStatesCustom = "StatesCustom"
 
 // CloudWatchReporter reports useful metrics about the activity.
 type CloudWatchReporter struct {
-	cwapi       cloudwatchiface.CloudWatchAPI
+	cwapi       CloudWatchAPI
 	activityArn string
 
 	// state to keep track of active percent
@@ -33,7 +38,7 @@ type CloudWatchReporter struct {
 	lastPausedStateChange time.Time
 }
 
-func NewCloudWatchReporter(cwapi cloudwatchiface.CloudWatchAPI, activityArn string) *CloudWatchReporter {
+func NewCloudWatchReporter(cwapi CloudWatchAPI, activityArn string) *CloudWatchReporter {
 	now := time.Now()
 	c := &CloudWatchReporter{
 		cwapi:       cwapi,
@@ -57,7 +62,7 @@ func (c *CloudWatchReporter) ReportActivePercent(ctx context.Context, interval t
 		case <-ctx.Done():
 			break
 		case <-ticker.C:
-			c.report()
+			c.report(ctx)
 		}
 	}
 }
@@ -109,7 +114,7 @@ func maxTime(a, b time.Time) time.Time {
 }
 
 // report computes and sends the active time metric to cloudwatch, resetting state related to tracking active time.
-func (c *CloudWatchReporter) report() {
+func (c *CloudWatchReporter) report(ctx context.Context) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	now := time.Now()
@@ -133,23 +138,24 @@ func (c *CloudWatchReporter) report() {
 	c.activeTime = time.Duration(0)
 	c.pausedTime = time.Duration(0)
 	// fire and forget the metric
-	go c.putMetricData(activePercent)
+	go c.putMetricData(ctx, activePercent)
 }
 
-func (c *CloudWatchReporter) putMetricData(activePercent float64) {
+func (c *CloudWatchReporter) putMetricData(ctx context.Context, activePercent float64) {
 	log.TraceD("put-metric-data", logger.M{"activity-arn": c.activityArn, "metric-name": metricNameActivityActivePercent, "value": activePercent})
-	if _, err := c.cwapi.PutMetricData(&cloudwatch.PutMetricDataInput{
-		MetricData: []*cloudwatch.MetricDatum{{
-			Dimensions: []*cloudwatch.Dimension{{
+	_, err := c.cwapi.PutMetricData(ctx, &cloudwatch.PutMetricDataInput{
+		MetricData: []types.MetricDatum{{
+			Dimensions: []types.Dimension{{
 				Name:  aws.String("ActivityArn"),
 				Value: aws.String(c.activityArn),
 			}},
 			MetricName: aws.String(metricNameActivityActivePercent),
-			Unit:       aws.String(cloudwatch.StandardUnitPercent),
+			Unit:       types.StandardUnitPercent,
 			Value:      aws.Float64(activePercent),
 		}},
 		Namespace: aws.String(namespaceStatesCustom),
-	}); err != nil {
+	})
+	if err != nil {
 		log.ErrorD("put-metric-data", logger.M{"error": err.Error()})
 	}
 }
