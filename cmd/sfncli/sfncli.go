@@ -215,7 +215,7 @@ func main() {
 			// Run the command. Treat unprocessed args (flag.Args()) as additional args to
 			// send to the command on every invocation of the command
 			taskRunner := NewTaskRunner(*cmd, sfnapi, token, *workDirectory)
-			err = taskRunner.Process(taskCtx, []string{}, input)
+			err = taskRunner.Process(taskCtx, flag.Args(), input)
 			if err != nil {
 				log.ErrorD("task-process-error", logger.M{"error": err.Error()})
 				taskCtxCancel()
