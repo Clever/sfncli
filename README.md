@@ -21,6 +21,8 @@ Usage of sfncli:
     	The worker name to send to AWS Step Functions when processing a task. Environment variables are expanded. The magic string MAGIC_ECS_TASK_ARN will be expanded to the ECS task ARN via the metadata service.
   -workdirectory string
     	A directory path that is passed to the `cmd` using an env var `WORK_DIR`. For each activity task a new directory is created in `workdirectory` and it is cleaned up after the activity task exits. Defaults to "", does not create directory or set `WORK_DIR`
+  -inputfile
+    	Write task input to a file (input.json) in WORK_DIR instead of passing as CLI argument. Useful for avoiding ARG_MAX limits with large payloads. Requires -workdirectory to be set.
 ```
 
 Example:
@@ -34,7 +36,7 @@ sfncli -activityname sleep-100 -region us-west-2 --cloudwatchregion us-west-1 -w
 - On startup, call [`CreateActivity`](http://docs.aws.amazon.com/step-functions/latest/apireference/API_CreateActivity.html) to register an [Activity](http://docs.aws.amazon.com/step-functions/latest/dg/concepts-activities.html) with Step Functions.
 - Begin polling [`GetActivityTask`](http://docs.aws.amazon.com/step-functions/latest/apireference/API_GetActivityTask.html) for tasks.
 - Get a task. Take the JSON input for the task and
-  - if it's a JSON object, use this as the last arg to the `cmd` passed to `sfncli`.
+  - if it's a JSON object, use this as the last arg to the `cmd` passed to `sfncli` (unless `-inputfile` is set, in which case write it to `WORK_DIR/input.json` and pass the file path as the argument).
   - if it's anything else (e.g. JSON array), an error is thrown.
   - if `_EXECUTION_NAME` is missing from the payload, an error is thrown
   - the `_EXECUTION_NAME` payload attribute value is added to the environment of the `cmd` as `_EXECUTION_NAME`.
