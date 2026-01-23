@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -43,17 +44,19 @@ type TaskRunner struct {
 	receivedSigterm    bool
 	sigtermGracePeriod time.Duration
 	workDirectory      string
+	inputFile          bool
 	ctxCancel          context.CancelFunc
 }
 
 // NewTaskRunner instantiates a new TaskRunner
-func NewTaskRunner(cmd string, sfnapi SFNAPI, taskToken string, workDirectory string) TaskRunner {
+func NewTaskRunner(cmd string, sfnapi SFNAPI, taskToken string, workDirectory string, inputFile bool) TaskRunner {
 	return TaskRunner{
 		sfnapi:        sfnapi,
 		taskToken:     taskToken,
 		cmd:           cmd,
 		logger:        logger.New("sfncli"),
 		workDirectory: workDirectory,
+		inputFile:     inputFile,
 		// set the default grace period to something slightly lower than the default
 		// docker stop grace period in ECS (30s)
 		sigtermGracePeriod: 25 * time.Second,
@@ -86,14 +89,6 @@ func (t *TaskRunner) Process(ctx context.Context, args []string, input string) e
 		return t.sendTaskFailure(TaskFailureUnknown{fmt.Errorf("JSON input re-marshalling failed. This should never happen. %s", err)})
 	}
 
-	args = append(args, string(marshaledInput))
-
-	// don't use exec.CommandContext, since we want to do graceful
-	// sigterm + (grace period) + sigkill on the context finishing
-	// CommandContext does sigkill immediately.
-	t.execCmd = exec.Command(t.cmd, args...)
-	t.execCmd.Env = append(os.Environ(), "_EXECUTION_NAME="+executionName)
-
 	tmpDir := ""
 	if t.workDirectory != "" {
 		// make a new tmpDir for every run
@@ -102,8 +97,30 @@ func (t *TaskRunner) Process(ctx context.Context, args []string, input string) e
 			return t.sendTaskFailure(TaskFailureUnknown{fmt.Errorf("failed to create tmp dir: %s", err)})
 		}
 
-		t.execCmd.Env = append(t.execCmd.Env, fmt.Sprintf("WORK_DIR=%s", tmpDir))
 		defer os.RemoveAll(tmpDir)
+	}
+
+	// Write input to file if inputFile mode is enabled, otherwise pass as CLI argument
+	if t.inputFile {
+		if tmpDir == "" {
+			return t.sendTaskFailure(TaskFailureUnknown{errors.New("--inputfile requires --workdirectory to be set")})
+		}
+		inputPath := filepath.Join(tmpDir, "input.json")
+		if err := ioutil.WriteFile(inputPath, marshaledInput, 0644); err != nil {
+			return t.sendTaskFailure(TaskFailureUnknown{fmt.Errorf("failed to write input file: %s", err)})
+		}
+		args = append(args, inputPath)
+	} else {
+		args = append(args, string(marshaledInput))
+	}
+
+	// don't use exec.CommandContext, since we want to do graceful
+	// sigterm + (grace period) + sigkill on the context finishing
+	// CommandContext does sigkill immediately.
+	t.execCmd = exec.Command(t.cmd, args...)
+	t.execCmd.Env = append(os.Environ(), "_EXECUTION_NAME="+executionName)
+	if tmpDir != "" {
+		t.execCmd.Env = append(t.execCmd.Env, fmt.Sprintf("WORK_DIR=%s", tmpDir))
 	}
 
 	// Write the stdout and stderr of the process to both this process' stdout and stderr

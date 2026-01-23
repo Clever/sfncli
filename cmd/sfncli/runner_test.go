@@ -72,7 +72,7 @@ func TestTaskFailureTaskInputNotJSON(t *testing.T) {
 		Error:     aws.String(expectedError.ErrorName()),
 		TaskToken: aws.String(mockTaskToken),
 	})
-	taskRunner := NewTaskRunner(path.Join(testScriptsDir, cmd), mockSFN, mockTaskToken, "")
+	taskRunner := NewTaskRunner(path.Join(testScriptsDir, cmd), mockSFN, mockTaskToken, "", false)
 	err := taskRunner.Process(testCtx, cmdArgs, taskInput)
 	require.Equal(t, err, expectedError)
 }
@@ -92,7 +92,7 @@ func TestTaskOutputEmptyStringAsJSON(t *testing.T) {
 		TaskToken: aws.String(mockTaskToken),
 		Output:    aws.String(`{"_EXECUTION_NAME":"fake-WFM-uuid"}`),
 	})
-	taskRunner := NewTaskRunner(path.Join(testScriptsDir, cmd), mockSFN, mockTaskToken, "")
+	taskRunner := NewTaskRunner(path.Join(testScriptsDir, cmd), mockSFN, mockTaskToken, "", false)
 	err := taskRunner.Process(testCtx, cmdArgs, taskInput)
 	require.NoError(t, err)
 
@@ -114,7 +114,7 @@ func TestTaskFailureCommandNotFound(t *testing.T) {
 		Error:     aws.String(expectedError.ErrorName()),
 		TaskToken: aws.String(mockTaskToken),
 	})
-	taskRunner := NewTaskRunner(path.Join(testScriptsDir, cmd), mockSFN, mockTaskToken, "")
+	taskRunner := NewTaskRunner(path.Join(testScriptsDir, cmd), mockSFN, mockTaskToken, "", false)
 	err := taskRunner.Process(testCtx, cmdArgs, emptyTaskInput)
 	require.Equal(t, err, expectedError)
 }
@@ -135,7 +135,7 @@ func TestTaskFailureCommandKilled(t *testing.T) {
 		Error:     aws.String(expectedError.ErrorName()),
 		TaskToken: aws.String(mockTaskToken),
 	})
-	taskRunner := NewTaskRunner(path.Join(testScriptsDir, cmd), mockSFN, mockTaskToken, "")
+	taskRunner := NewTaskRunner(path.Join(testScriptsDir, cmd), mockSFN, mockTaskToken, "", false)
 	go func() {
 		time.Sleep(2 * time.Second)
 		taskRunner.execCmd.Process.Signal(syscall.SIGKILL)
@@ -160,7 +160,7 @@ func TestTaskFailureCommandExitedNonzero(t *testing.T) {
 		Error:     aws.String(expectedError.ErrorName()),
 		TaskToken: aws.String(mockTaskToken),
 	})
-	taskRunner := NewTaskRunner(path.Join(testScriptsDir, cmd), mockSFN, mockTaskToken, "")
+	taskRunner := NewTaskRunner(path.Join(testScriptsDir, cmd), mockSFN, mockTaskToken, "", false)
 	err := taskRunner.Process(testCtx, cmdArgs, emptyTaskInput)
 	require.Equal(t, err, expectedError)
 }
@@ -181,7 +181,7 @@ func TestTaskFailureCustomErrorName(t *testing.T) {
 		Error:     aws.String(expectedError.ErrorName()),
 		TaskToken: aws.String(mockTaskToken),
 	})
-	taskRunner := NewTaskRunner(path.Join(testScriptsDir, cmd), mockSFN, mockTaskToken, "")
+	taskRunner := NewTaskRunner(path.Join(testScriptsDir, cmd), mockSFN, mockTaskToken, "", false)
 	err := taskRunner.Process(testCtx, cmdArgs, emptyTaskInput)
 	require.Equal(t, err, expectedError)
 }
@@ -202,7 +202,7 @@ func TestTaskFailureTaskOutputNotJSON(t *testing.T) {
 		Error:     aws.String(expectedError.ErrorName()),
 		TaskToken: aws.String(mockTaskToken),
 	})
-	taskRunner := NewTaskRunner(path.Join(testScriptsDir, cmd), mockSFN, mockTaskToken, "")
+	taskRunner := NewTaskRunner(path.Join(testScriptsDir, cmd), mockSFN, mockTaskToken, "", false)
 	err := taskRunner.Process(testCtx, cmdArgs, emptyTaskInput)
 	require.Equal(t, err, expectedError)
 }
@@ -223,7 +223,7 @@ func TestTaskFailureCommandTerminated(t *testing.T) {
 			Error:     aws.String(expectedError.ErrorName()),
 			TaskToken: aws.String(mockTaskToken),
 		})
-		taskRunner := NewTaskRunner(path.Join(testScriptsDir, cmd), mockSFN, mockTaskToken, "")
+		taskRunner := NewTaskRunner(path.Join(testScriptsDir, cmd), mockSFN, mockTaskToken, "", false)
 		go func() {
 			time.Sleep(1 * time.Second)
 			process, _ := os.FindProcess(os.Getpid())
@@ -248,7 +248,7 @@ func TestTaskFailureCommandTerminated(t *testing.T) {
 			Error:     aws.String(expectedError.ErrorName()),
 			TaskToken: aws.String(mockTaskToken),
 		})
-		taskRunner := NewTaskRunner(path.Join(testScriptsDir, cmd), mockSFN, mockTaskToken, "")
+		taskRunner := NewTaskRunner(path.Join(testScriptsDir, cmd), mockSFN, mockTaskToken, "", false)
 		go func() {
 			time.Sleep(1 * time.Second)
 			process, _ := os.FindProcess(os.Getpid())
@@ -273,7 +273,7 @@ func TestTaskFailureCommandTerminated(t *testing.T) {
 			Error:     aws.String(expectedError.ErrorName()),
 			TaskToken: aws.String(mockTaskToken),
 		})
-		taskRunner := NewTaskRunner(path.Join(testScriptsDir, cmd), mockSFN, mockTaskToken, "")
+		taskRunner := NewTaskRunner(path.Join(testScriptsDir, cmd), mockSFN, mockTaskToken, "", false)
 		// lower the grace period so this test doesn't take forever
 		taskRunner.sigtermGracePeriod = 5 * time.Second
 		go func() {
@@ -299,7 +299,7 @@ func TestTaskSuccessSignalForwarded(t *testing.T) {
 		TaskToken: aws.String(mockTaskToken),
 	})
 	defer controller.Finish()
-	taskRunner := NewTaskRunner(path.Join(testScriptsDir, cmd), mockSFN, mockTaskToken, "")
+	taskRunner := NewTaskRunner(path.Join(testScriptsDir, cmd), mockSFN, mockTaskToken, "", false)
 	go func() {
 		time.Sleep(1 * time.Second)
 		process, _ := os.FindProcess(os.Getpid())
@@ -321,7 +321,7 @@ func TestTaskSuccessOutputIsLastLineOfStdout(t *testing.T) {
 		TaskToken: aws.String(mockTaskToken),
 	})
 	defer controller.Finish()
-	taskRunner := NewTaskRunner(path.Join(testScriptsDir, cmd), mockSFN, mockTaskToken, "")
+	taskRunner := NewTaskRunner(path.Join(testScriptsDir, cmd), mockSFN, mockTaskToken, "", false)
 	require.Nil(t, taskRunner.Process(testCtx, cmdArgs, emptyTaskInput))
 }
 
@@ -340,7 +340,7 @@ func TestTaskWorkDirectorySetup(t *testing.T) {
 		taskToken:      mockTaskToken,
 		expectedPrefix: "/tmp",
 	}) // returns the result of WORK_DIR
-	taskRunner := NewTaskRunner(path.Join(testScriptsDir, cmd), mockSFN, mockTaskToken, "/tmp")
+	taskRunner := NewTaskRunner(path.Join(testScriptsDir, cmd), mockSFN, mockTaskToken, "/tmp", false)
 	err := taskRunner.Process(testCtx, cmdArgs, taskInput)
 	require.NoError(t, err)
 }
@@ -360,7 +360,7 @@ func TestTaskWorkDirectoryUnsetByDefault(t *testing.T) {
 		TaskToken: aws.String(mockTaskToken),
 		Output:    aws.String(`{"_EXECUTION_NAME":"fake-WFM-uuid","work_dir":""}`), // returns the result of WORK_DIR
 	})
-	taskRunner := NewTaskRunner(path.Join(testScriptsDir, cmd), mockSFN, mockTaskToken, "")
+	taskRunner := NewTaskRunner(path.Join(testScriptsDir, cmd), mockSFN, mockTaskToken, "", false)
 	err := taskRunner.Process(testCtx, cmdArgs, taskInput)
 	require.NoError(t, err)
 }
@@ -384,7 +384,7 @@ func TestTaskWorkDirectoryCleaned(t *testing.T) {
 
 	os.MkdirAll("/tmp/test", os.ModeDir|0777) // base path is created by cmd/sfncli/sfncli.go
 	defer os.RemoveAll("/tmp/test")
-	taskRunner := NewTaskRunner(path.Join(testScriptsDir, cmd), mockSFN, mockTaskToken, "/tmp/test")
+	taskRunner := NewTaskRunner(path.Join(testScriptsDir, cmd), mockSFN, mockTaskToken, "/tmp/test", false)
 	err := taskRunner.Process(testCtx, cmdArgs, taskInput)
 	require.NoError(t, err)
 	if _, err := os.Stat(dirMatcher.foundWorkdir); os.IsExist(err) {
