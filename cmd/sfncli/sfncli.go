@@ -33,6 +33,7 @@ func main() {
 	region := flag.String("region", "", "The AWS region to send Step Function API calls. Defaults to AWS_REGION.")
 	cloudWatchRegion := flag.String("cloudwatchregion", "", "The AWS region to report metrics. Defaults to the value of the region flag.")
 	workDirectory := flag.String("workdirectory", "", "Create the specified directory pass the path using the environment variable WORK_DIR to the cmd processing a task. Default is to not create the path.")
+	inputFile := flag.Bool("inputfile", false, "Write task input to a file (input.json) in WORK_DIR instead of passing as CLI argument. Useful for avoiding ARG_MAX limits with large payloads.")
 	printVersion := flag.Bool("version", false, "Print the version and exit.")
 
 	flag.Parse()
@@ -214,7 +215,7 @@ func main() {
 
 			// Run the command. Treat unprocessed args (flag.Args()) as additional args to
 			// send to the command on every invocation of the command
-			taskRunner := NewTaskRunner(*cmd, sfnapi, token, *workDirectory)
+			taskRunner := NewTaskRunner(*cmd, sfnapi, token, *workDirectory, *inputFile)
 			err = taskRunner.Process(taskCtx, flag.Args(), input)
 			if err != nil {
 				log.ErrorD("task-process-error", logger.M{"error": err.Error()})
