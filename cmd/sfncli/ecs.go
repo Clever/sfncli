@@ -14,6 +14,39 @@ import (
 const magicECSTaskARN = "MAGIC_ECS_TASK_ARN"
 const magicECSTaskID = "MAGIC_ECS_TASK_ID"
 
+// ecsAgentURIEnvVar is set by the ECS agent (>= v1.67.0) and used for task protection API
+const ecsAgentURIEnvVar = "ECS_AGENT_URI"
+
+// taskProtectionExpiryMinutes is the fallback expiry for task protection in case the process
+// exits without explicitly removing protection (e.g. crash). 120 minutes covers our longest jobs.
+const taskProtectionExpiryMinutes = 120
+
+// setTaskProtection enables or disables ECS scale-in protection for the current task.
+// When enabled, ECS will not terminate this task during autoscaling scale-in events.
+// No-op if ECS_AGENT_URI is not set (e.g. local development).
+func setTaskProtection(protected bool) error {
+	agentURI, ok := os.LookupEnv(ecsAgentURIEnvVar)
+	if !ok {
+		return nil
+	}
+	body := fmt.Sprintf(`{"ProtectionEnabled":%v,"ExpiresInMinutes":%d}`, protected, taskProtectionExpiryMinutes)
+	req, err := http.NewRequest("PUT", agentURI+"/task-protection/v1/state", strings.NewReader(body))
+	if err != nil {
+		return fmt.Errorf("creating task protection request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("sending task protection request: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		b, _ := ioutil.ReadAll(resp.Body)
+		return fmt.Errorf("task protection request returned %d: %s", resp.StatusCode, string(b))
+	}
+	return nil
+}
+
 // TODO https://clever.atlassian.net/browse/INFRANG-4174. Update URI env variable
 // these are env vars the AWS ECS agent sets for us depending on ECS agent version or Fargate platform version
 const ecsContainerMetadataUriEnvVar = "ECS_CONTAINER_METADATA_URI"

@@ -116,6 +116,16 @@ func (t *TaskRunner) Process(ctx context.Context, args []string, input string) e
 	// forward signals to the command, handle SIGTERM
 	go t.handleSignals(ctx)
 
+	if err := setTaskProtection(true); err != nil {
+		t.logger.WarnD("set-task-protection-error", logger.M{"error": err.Error(), "protected": true})
+	} else {
+		defer func() {
+			if err := setTaskProtection(false); err != nil {
+				t.logger.WarnD("set-task-protection-error", logger.M{"error": err.Error(), "protected": false})
+			}
+		}()
+	}
+
 	if err := t.execCmd.Run(); err != nil {
 		stderr := strings.TrimSpace(stderrbuf.String())                  // remove trailing newline
 		customError, _ := parseCustomErrorFromStdout(stdoutbuf.String()) // ignore parsing errors
