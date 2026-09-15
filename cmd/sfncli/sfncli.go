@@ -17,7 +17,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/cloudwatch"
 	"github.com/aws/aws-sdk-go-v2/service/sfn"
 	"github.com/aws/aws-sdk-go-v2/service/sfn/types"
-	"github.com/aws/smithy-go"
 	"golang.org/x/time/rate"
 )
 
@@ -173,13 +172,11 @@ func main() {
 				WorkerName:  aws.String(*workerName),
 			})
 			if err != nil {
-				// if the context is canceled or request is canceled, we can continue
-				if err == context.Canceled {
-					log.Warn("getactivitytask-cancel")
-					continue
-				}
-				var opErr *smithy.OperationError
-				if errors.As(err, &opErr) && opErr.Err.Error() == "request canceled" {
+				// GetActivityTask is a long poll so when the pod is scaling down,
+				// mainCtx is canceled mid-request and the SDK wraps context.Canceled
+				// in its own error types so we need to check for context.Canceled
+				// in the error chain and treat it as a non error
+				if isCanceledError(err) {
 					log.Warn("getactivitytask-cancel")
 					continue
 				}
@@ -253,6 +250,12 @@ func tagsFromEnv() []types.Tag {
 	}
 
 	return tags
+}
+
+// isCanceledError reports whether err represents the GetActivityTask long-poll
+// being interrupted by context cancellation as opposed to a genuine API error
+func isCanceledError(err error) bool {
+	return errors.Is(err, context.Canceled)
 }
 
 // validateWorkDirectory ensures the directory exists and is writable
