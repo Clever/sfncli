@@ -85,6 +85,8 @@ func main() {
 		}
 	}
 
+	// mainCtx is canceled on SIGTERM. It stops new polls only; in-flight polls and tasks
+	// run on their own contexts so SIGTERM can't orphan a task (see pollActivityTask).
 	mainCtx, mainCtxCancel := context.WithCancel(context.Background())
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt, os.Signal(syscall.SIGTERM))
@@ -167,23 +169,12 @@ func main() {
 			log.TraceD("getactivitytask-start", logger.M{
 				"activity-arn": *createOutput.ActivityArn, "worker-name": *workerName,
 			})
-			getATOutput, err := sfnapi.GetActivityTask(mainCtx, &sfn.GetActivityTaskInput{
-				ActivityArn: createOutput.ActivityArn,
-				WorkerName:  aws.String(*workerName),
-			})
+			getATOutput, err := pollActivityTask(mainCtx, sfnapi, *createOutput.ActivityArn, *workerName)
 			if err != nil {
-				// GetActivityTask is a long poll so when the pod is scaling down,
-				// mainCtx is canceled mid-request and the SDK wraps context.Canceled
-				// in its own error types so we need to check for context.Canceled
-				// in the error chain and treat it as a non error
-				if isCanceledError(err) {
-					log.Warn("getactivitytask-cancel")
-					continue
-				}
 				log.ErrorD("getactivitytask-error", logger.M{"error": err.Error()})
 				continue
 			}
-			if getATOutput.TaskToken == nil { // No jobs to do
+			if getATOutput == nil { // No jobs to do, or task handed back on shutdown
 				log.Debug("getactivitytask-skip")
 				continue
 			}
@@ -194,7 +185,9 @@ func main() {
 			log.TraceD("getactivitytask", logger.M{"input": input, "token": token})
 
 			// Create a context for this task. We'll cancel this context on errors.
-			taskCtx, taskCtxCancel := context.WithCancel(mainCtx)
+			// Not derived from mainCtx: on SIGTERM the runner forwards the signal and
+			// waits its grace period, and heartbeats must keep going meanwhile.
+			taskCtx, taskCtxCancel := context.WithCancel(context.Background())
 
 			// Begin sending heartbeats
 			go func() {
@@ -252,10 +245,40 @@ func tagsFromEnv() []types.Tag {
 	return tags
 }
 
-// isCanceledError reports whether err represents the GetActivityTask long-poll
-// being interrupted by context cancellation as opposed to a genuine API error
-func isCanceledError(err error) bool {
-	return errors.Is(err, context.Canceled)
+// pollTimeout bounds one GetActivityTask call. SFN long polls return within 60s.
+const pollTimeout = 70 * time.Second
+
+// pollActivityTask long-polls for a task without ever canceling the poll mid-flight.
+// SFN can hand a task to a poll whose client has gone away, and that task is lost
+// until its heartbeat times out. If stopCtx is done when a task arrives, the task is
+// failed with sfncli.WorkerShuttingDown so the workflow can retry it.
+// Returns nil output when there is no task to run.
+func pollActivityTask(stopCtx context.Context, sfnapi SFNAPI, activityArn, workerName string) (*sfn.GetActivityTaskOutput, error) {
+	pollCtx, cancel := context.WithTimeout(context.Background(), pollTimeout)
+	defer cancel()
+	out, err := sfnapi.GetActivityTask(pollCtx, &sfn.GetActivityTaskInput{
+		ActivityArn: aws.String(activityArn),
+		WorkerName:  aws.String(workerName),
+	})
+	if err != nil {
+		return nil, err
+	}
+	if out.TaskToken == nil {
+		return nil, nil
+	}
+	if stopCtx.Err() != nil {
+		f := TaskFailureWorkerShuttingDown{}
+		log.WarnD("getactivitytask-shutdown-return", logger.M{"token": *out.TaskToken})
+		if _, err := sfnapi.SendTaskFailure(context.Background(), &sfn.SendTaskFailureInput{
+			TaskToken: out.TaskToken,
+			Error:     aws.String(f.ErrorName()),
+			Cause:     aws.String(f.ErrorCause()),
+		}); err != nil {
+			return nil, fmt.Errorf("returning task on shutdown: %w", err)
+		}
+		return nil, nil
+	}
+	return out, nil
 }
 
 // validateWorkDirectory ensures the directory exists and is writable

@@ -7,8 +7,12 @@ import (
 	"os"
 	"testing"
 
-	"github.com/aws/smithy-go"
+	"github.com/Clever/sfncli/mocks"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/sfn"
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestValidateWorkDirectory(t *testing.T) {
@@ -34,26 +38,64 @@ func TestValidateWorkDirectory(t *testing.T) {
 	})
 }
 
-func TestIsCanceledError(t *testing.T) {
-	t.Run("bare context.Canceled", func(t *testing.T) {
-		assert.True(t, isCanceledError(context.Canceled))
+func TestPollActivityTask(t *testing.T) {
+	const arn, worker, token = "arn:activity", "worker", "tok"
+
+	t.Run("no task", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		m := mocks.NewMockSFNAPI(ctrl)
+		m.EXPECT().GetActivityTask(gomock.Any(), gomock.Any()).Return(&sfn.GetActivityTaskOutput{}, nil)
+
+		out, err := pollActivityTask(context.Background(), m, arn, worker)
+		require.NoError(t, err)
+		require.Nil(t, out)
 	})
 
-	t.Run("smithy.CanceledError wrapping context.Canceled", func(t *testing.T) {
-		err := &smithy.CanceledError{Err: context.Canceled}
-		assert.True(t, isCanceledError(err))
+	t.Run("task while running is returned", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		m := mocks.NewMockSFNAPI(ctrl)
+		m.EXPECT().GetActivityTask(gomock.Any(), gomock.Any()).
+			Return(&sfn.GetActivityTaskOutput{TaskToken: aws.String(token), Input: aws.String("{}")}, nil)
+
+		out, err := pollActivityTask(context.Background(), m, arn, worker)
+		require.NoError(t, err)
+		require.Equal(t, token, *out.TaskToken)
 	})
 
-	t.Run("smithy.OperationError wrapping a canceled request (production shape)", func(t *testing.T) {
-		err := &smithy.OperationError{
-			ServiceID:     "SFN",
-			OperationName: "GetActivityTask",
-			Err:           &smithy.CanceledError{Err: context.Canceled},
-		}
-		assert.True(t, isCanceledError(err))
+	t.Run("SIGTERM mid-poll does not cancel the poll, task is handed back", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		m := mocks.NewMockSFNAPI(ctrl)
+		stopCtx, stop := context.WithCancel(context.Background())
+
+		m.EXPECT().GetActivityTask(gomock.Any(), gomock.Any()).DoAndReturn(
+			func(ctx context.Context, _ *sfn.GetActivityTaskInput, _ ...func(*sfn.Options)) (*sfn.GetActivityTaskOutput, error) {
+				stop() // SIGTERM arrives mid-poll
+				require.NoError(t, ctx.Err(), "poll context must survive SIGTERM")
+				return &sfn.GetActivityTaskOutput{TaskToken: aws.String(token), Input: aws.String("{}")}, nil
+			})
+		f := TaskFailureWorkerShuttingDown{}
+		m.EXPECT().SendTaskFailure(gomock.Any(), &sfn.SendTaskFailureInput{
+			TaskToken: aws.String(token),
+			Error:     aws.String(f.ErrorName()),
+			Cause:     aws.String(f.ErrorCause()),
+		}).Return(&sfn.SendTaskFailureOutput{}, nil)
+
+		out, err := pollActivityTask(stopCtx, m, arn, worker)
+		require.NoError(t, err)
+		require.Nil(t, out)
 	})
 
-	t.Run("unrelated error", func(t *testing.T) {
-		assert.False(t, isCanceledError(errors.New("boom")))
+	t.Run("hand-back failure is reported", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		m := mocks.NewMockSFNAPI(ctrl)
+		stopCtx, stop := context.WithCancel(context.Background())
+		stop()
+		m.EXPECT().GetActivityTask(gomock.Any(), gomock.Any()).
+			Return(&sfn.GetActivityTaskOutput{TaskToken: aws.String(token)}, nil)
+		m.EXPECT().SendTaskFailure(gomock.Any(), gomock.Any()).Return(nil, errors.New("boom"))
+
+		out, err := pollActivityTask(stopCtx, m, arn, worker)
+		require.Error(t, err)
+		require.Nil(t, out)
 	})
 }

@@ -158,3 +158,13 @@ func (t TaskFailureCommandTerminated) ErrorCause() string { return t.stderr }
 func (t TaskFailureCommandTerminated) Error() string {
 	return fmt.Sprintf("%s: %s", t.ErrorName(), t.ErrorCause())
 }
+
+// TaskFailureWorkerShuttingDown happens when SFN hands sfncli a task after it received SIGTERM.
+// The task never started, so it is safe to retry.
+type TaskFailureWorkerShuttingDown struct{}
+
+func (t TaskFailureWorkerShuttingDown) ErrorName() string { return "sfncli.WorkerShuttingDown" }
+func (t TaskFailureWorkerShuttingDown) ErrorCause() string {
+	return "worker received SIGTERM before starting the task"
+}
+func (t TaskFailureWorkerShuttingDown) Error() string { return t.ErrorName() }
