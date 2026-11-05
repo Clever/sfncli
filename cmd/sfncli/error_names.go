@@ -159,8 +159,7 @@ func (t TaskFailureCommandTerminated) Error() string {
 	return fmt.Sprintf("%s: %s", t.ErrorName(), t.ErrorCause())
 }
 
-// TaskFailureWorkerShuttingDown happens when SFN hands sfncli a task after it received SIGTERM.
-// The task never started, so it is safe to retry.
+// TaskFailureWorkerShuttingDown: task received after SIGTERM. Never started; safe to retry.
 type TaskFailureWorkerShuttingDown struct{}
 
 func (t TaskFailureWorkerShuttingDown) ErrorName() string { return "sfncli.WorkerShuttingDown" }

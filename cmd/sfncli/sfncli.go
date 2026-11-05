@@ -85,8 +85,7 @@ func main() {
 		}
 	}
 
-	// mainCtx is canceled on SIGTERM. It stops new polls only; in-flight polls and tasks
-	// run on their own contexts so SIGTERM can't orphan a task (see pollActivityTask).
+	// Canceled on SIGTERM. Stops new polls only.
 	mainCtx, mainCtxCancel := context.WithCancel(context.Background())
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt, os.Signal(syscall.SIGTERM))
@@ -184,9 +183,7 @@ func main() {
 			token := *getATOutput.TaskToken
 			log.TraceD("getactivitytask", logger.M{"input": input, "token": token})
 
-			// Create a context for this task. We'll cancel this context on errors.
-			// Not derived from mainCtx: on SIGTERM the runner forwards the signal and
-			// waits its grace period, and heartbeats must keep going meanwhile.
+			// Independent of mainCtx so heartbeats continue through the SIGTERM grace period.
 			taskCtx, taskCtxCancel := context.WithCancel(context.Background())
 
 			// Begin sending heartbeats
@@ -245,14 +242,12 @@ func tagsFromEnv() []types.Tag {
 	return tags
 }
 
-// pollTimeout bounds one GetActivityTask call. SFN long polls return within 60s.
+// SFN long polls return within 60s.
 const pollTimeout = 70 * time.Second
 
-// pollActivityTask long-polls for a task without ever canceling the poll mid-flight.
-// SFN can hand a task to a poll whose client has gone away, and that task is lost
-// until its heartbeat times out. If stopCtx is done when a task arrives, the task is
-// failed with sfncli.WorkerShuttingDown so the workflow can retry it.
-// Returns nil output when there is no task to run.
+// pollActivityTask never cancels an in-flight poll: SFN may still dispatch a task to it.
+// A task received after stopCtx is done is failed with sfncli.WorkerShuttingDown.
+// Returns nil when there is no task to run.
 func pollActivityTask(stopCtx context.Context, sfnapi SFNAPI, activityArn, workerName string) (*sfn.GetActivityTaskOutput, error) {
 	pollCtx, cancel := context.WithTimeout(context.Background(), pollTimeout)
 	defer cancel()
