@@ -22,6 +22,7 @@ import (
 
 // SFNAPI defines the interface for Step Functions API operations used by sfncli
 type SFNAPI interface {
+	GetActivityTask(ctx context.Context, params *sfn.GetActivityTaskInput, optFns ...func(*sfn.Options)) (*sfn.GetActivityTaskOutput, error)
 	SendTaskFailure(ctx context.Context, params *sfn.SendTaskFailureInput, optFns ...func(*sfn.Options)) (*sfn.SendTaskFailureOutput, error)
 	SendTaskSuccess(ctx context.Context, params *sfn.SendTaskSuccessInput, optFns ...func(*sfn.Options)) (*sfn.SendTaskSuccessOutput, error)
 	SendTaskHeartbeat(ctx context.Context, params *sfn.SendTaskHeartbeatInput, optFns ...func(*sfn.Options)) (*sfn.SendTaskHeartbeatOutput, error)
